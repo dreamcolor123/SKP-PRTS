@@ -83,6 +83,7 @@ $("#stage").innerHTML = `
     <div class="archive-counter"><span class="tiny-label">ARCHIVE / SELECT</span><div><span id="selected-number">01</span><i>/</i><span class="count-total">12</span></div></div>
     <div class="archive-navigation"><button data-action="prev" aria-label="上一个档案">↑</button><div id="file-ticks" class="file-ticks"></div><button data-action="next" aria-label="下一个档案">↓</button></div>
     <div class="column-navigation"><button data-action="column-prev" aria-label="上一列">←</button><div><span id="column-number">COLUMN <span id="column-index">03</span> / 05</span><strong id="column-name">系统概览</strong></div><button data-action="column-next" aria-label="下一列">→</button></div>
+    <div class="archive-row-navigation" role="group" aria-label="当前列档案"><button data-action="row-prev" aria-label="当前列上一张档案"><span aria-hidden="true">↑</span>上一张</button><output id="archive-row-position" aria-live="polite"><small id="archive-row-name">系统概览</small><strong><span id="archive-row-index">01</span><i>/</i><span id="archive-row-total">01</span></strong></output><button data-action="row-next" aria-label="当前列下一张档案">下一张<span aria-hidden="true">↓</span></button></div>
     <div class="archive-hint"><kbd>←</kbd> <kbd>→</kbd> 切换列 <span>／</span> <kbd>↑</kbd> <kbd>↓</kbd> 前后档案 <span>／</span> <kbd>ENTER</kbd> 读取</div>
   </section>
   <section id="detail-ui" class="detail-ui" aria-label="档案内容" hidden>
@@ -303,11 +304,13 @@ function syncWorkspaceChrome() {
 }
 function openWorkspace(index: number, root = false) {
   if (!records[index]) return;
+  const continuing = workspaceInitialized && !browsingArray && mode === "detail";
+  scene?.setWorkspaceNavigation(continuing);
   browsingArray = false;
   workspaceInitialized = true;
   workspaceRoot = root;
   activeSection = sectionFor(records[index]);
-  select(index);
+  select(index, undefined, continuing);
   setMode("detail");
   syncWorkspaceChrome();
   publishPresentation();
@@ -559,6 +562,7 @@ let fileTicks: HTMLButtonElement[] = [];
 
 function setMode(next: Mode) {
   if (workbench?.enabled && next === "detail") next = "archive";
+  if (next !== "detail") scene?.setWorkspaceNavigation(false);
   const previousMode = mode;
   rollingTitles.forEach(title => title.update({ animated: !prefs.reduced && next === "archive" }));
   if (next !== "archive") {
@@ -618,18 +622,20 @@ function setMode(next: Mode) {
   }
   if (typeof facePanel !== "undefined") syncWorkspaceChrome();
 }
-function select(index: number, navigation?: ArchiveNavigation) {
+function select(index: number, navigation?: ArchiveNavigation, keepWorkspaceShot = false) {
   selected = (index + records.length) % records.length;
   columnMemory[fileLocation(selected).lane] = selected;
-  if (mode === "detail") setMode("archive");
+  if(browsingArray){activeSection=sectionFor(records[selected]);floatingNavigation.select(activeSection,prefs.reduced);}
+  if (mode === "detail" && !keepWorkspaceShot) setMode("archive");
   activeTab = "overview";
   scene?.select(selected, navigation);
   updateSelection(navigation);
+  if (keepWorkspaceShot) renderDetail();
   const columnMove = navigation && "axis" in navigation && navigation.axis === "lane";
   audio.play(columnMove ? "column" : "tick", columnMove ? navigation.direction * .45 : 0);
 }
 function stepFile(direction: number) {
-  const files = columnFiles(fileLocation(selected).lane);
+  const files = columnFiles(fileLocation(selected).lane).filter(index => !records[index].empty);
   if (files.length < 2) return;
   select(
     files[(files.indexOf(selected) + direction + files.length) % files.length],
@@ -645,6 +651,14 @@ function updateSelection(navigation?: ArchiveNavigation) {
   const r = records[selected];
   const { lane } = fileLocation(selected);
   const files = columnFiles(lane);
+  const actualFiles = files.filter(index => !records[index].empty);
+  const actualPosition = Math.max(0, actualFiles.indexOf(selected) + 1);
+  $("#archive-row-index").textContent = String(actualPosition).padStart(2, "0");
+  $("#archive-row-total").textContent = String(actualFiles.length).padStart(2, "0");
+  $("#archive-row-name").textContent = archiveColumns[lane];
+  $("#archive-row-position").setAttribute("aria-label", `${archiveColumns[lane]}，第 ${actualPosition} 张，共 ${actualFiles.length} 张`);
+  $<HTMLButtonElement>('[data-action="row-prev"]').disabled = actualFiles.length < 2;
+  $<HTMLButtonElement>('[data-action="row-next"]').disabled = actualFiles.length < 2;
   selectionTitle.update({ text: r.title, animated: !prefs.reduced && mode === "archive" });
   clearanceTitle.update({ text: r.clearance, animated: !prefs.reduced && mode === "archive" });
   categoryTitle.update({ text: r.category, animated: !prefs.reduced && mode === "archive" });
@@ -1016,8 +1030,8 @@ document.addEventListener("click", (e) => {
     setMode("archive");
     audio.play("confirm");
   }
-  if (action === "prev") stepFile(-1);
-  if (action === "next") stepFile(1);
+  if (action === "prev" || action === "row-prev") stepFile(-1);
+  if (action === "next" || action === "row-next") stepFile(1);
   if (action === "column-prev") stepColumn(-1);
   if (action === "column-next") stepColumn(1);
   if (action === "open") openFile();
@@ -1240,6 +1254,10 @@ function frame(ms: number) {
       : undefined;
   wallpaperEffects?.update(time, prefs.reduced);
   // The calibrated 2D opening fully covers the scene until array entry.
+  scene?.setFolderFrameSync(facePanel.needsDepthFrame && started && mode!=="boot" && !visualLab && !viewer?.isOpen && !modal);
+  // Present the completed pair before preparing the next one, allowing one
+  // matched canvas/mask per refresh without synchronously waiting for the GPU.
+  if(scene?.folderFrameSynchronized&&facePanel.depthFrameReady)facePanel.update(scene,true,time);
   if (!viewer?.isOpen && (!cinema || cinema.time >= 21.9)) scene?.update(time, cinema);
   viewer?.update(time);
   if (threeState === "closing" && scene?.presentationHidden) releaseThree();

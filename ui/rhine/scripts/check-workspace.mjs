@@ -41,6 +41,17 @@ try {
  await page.waitForSelector('.folder-face-panel[data-expanded=true]');
  await page.waitForFunction(()=>window.rhine.stats().cameraDetail>.999,{timeout:20000});
  await page.waitForTimeout(1800);
+ const browseButton=page.locator('.ff-browse');
+ const arrayMark=page.locator('.ff-browse .ff-array-mark');
+ assert.equal(await browseButton.count(),1,'Archive browse control must remain unique');
+ assert.equal(await arrayMark.evaluate(el=>el.tagName.toLowerCase()),'svg','Archive browse mark must use a projected SVG glyph');
+ assert.equal(await arrayMark.evaluate(el=>getComputedStyle(el).transform),'none','Glyph must not add a second local skew');
+ const browseBox=await browseButton.boundingBox();
+ const browseLocal=await browseButton.evaluate(el=>({width:el instanceof HTMLElement ? el.offsetWidth : 0,height:el instanceof HTMLElement ? el.offsetHeight : 0}));
+ assert.ok(browseLocal.width>=48 && browseLocal.height>=48,'Archive browse hit target must remain at least 48px');
+ assert.ok(browseBox && browseBox.width>=48 && browseBox.height>=48,'Expanded archive browse target must remain at least 48px after projection');
+ assert.equal(await browseButton.getAttribute('aria-label'),'浏览阵列');
+ results.push({archiveBrowseGlyph:'svg-card-outline',browseHitTarget:browseBox});
  assert.ok((await page.evaluate(()=>window.rhine.stats().workHeightScale))>1.6);
  assert.equal(await page.locator('.ff-health-list [data-health=normal]').count(),3);
  assert.equal(await page.locator('.ff-health-list [data-health=warning]').count(),1);

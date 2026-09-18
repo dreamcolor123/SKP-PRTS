@@ -1,5 +1,7 @@
 # SKP × RhineLabUI 测试交付状态
 
+> 最新遮挡同步、传感器轴向及逐张导航见 [交互修复](UI_DEPTH_NAVIGATION.md)。旧文档保留为历史。
+
 > 最新性能、图标、列序、视差和弹窗音乐修复见 [UI 修复](UI_POLISH.md)。本页旧计数与 APK 为历史记录。
 
 > 最新一轮高度、悬浮导航、方向传感器和状态规则见 [UI 细化](UI_REFINEMENT.md)。前文阶段产物和数字保留为历史；最新 APK 和结果以事务 VERIFICATION.txt 为准。

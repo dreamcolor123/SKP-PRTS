@@ -5,6 +5,17 @@ import "./folder-face-panel.css";
 import { WORKING_HEIGHT, FACE_WIDTH, FACE_HEIGHT } from "./spatial-motion";
 import type { FolderDepthSample } from "./folder-depth-mask";
 
+interface FaceScene {
+  projectCard(x:number,y:number,z?:number):number[];
+  workHeightScale?:number;
+  deviceTilt?:{x:number;y:number};
+  folderMask?():FolderDepthSample|Promise<FolderDepthSample>;
+  pendingFolderFrame?:number;
+  folderFrameSynchronized?:boolean;
+  presentFolderFrame?(frame:number):boolean;
+}
+interface PreparedMask { commit():void; discard():void; }
+
 export type FolderSection = "home" | "authorization" | "modules" | "market" | "settings";
 export interface FolderFaceState {
   section: FolderSection;
@@ -89,6 +100,11 @@ export class FolderFacePanel {
   private maskEpoch = 0;
   private maskUrl?: string;
   private maskSource?: object;
+  private readonly numericClip = CSS.supports("clip-path", 'path("M0 0H1V1H0Z")');
+  private maskRects?: {x:number;y:number;width:number;height:number}[];
+  private preparedMask?: {frame:number;epoch:number;value:PreparedMask};
+  private maskRetries=0;
+  private pendingVisual=false;
   private forwarded = new Set<number>();
 
   constructor(private viewport: HTMLElement, private callbacks: FolderFaceCallbacks) {
@@ -140,11 +156,13 @@ export class FolderFacePanel {
   }
 
   get isActive() { return this.shown; }
+  get needsDepthFrame() { return !this.element.hidden; }
+  get depthFrameReady() { return this.preparedMask!==undefined; }
   get active() { return this.shown; }
   get currentSection() { return this.state.section; }
   get currentRecordId() { return this.state.recordId; }
   get isRoot() { return this.state.root; }
-  setInert(value: boolean) { this.externallyInert = value; this.element.inert = value || !this.shown; }
+  setInert(value: boolean) { this.externallyInert = value; this.element.inert = value || !this.shown || this.pendingVisual; }
   getState(): FolderFaceState {
     return { ...this.state, queries: { ...this.state.queries }, scroll: { ...this.state.scroll } };
   }
@@ -169,9 +187,12 @@ export class FolderFacePanel {
       return;
     }
     this.saveScroll();
+    if(!this.shown&&this.onModel)this.element.style.visibility="hidden";
     this.maskEpoch++;
-    this.maskHash=-1;
-    if(this.onModel){this.element.style.maskImage="linear-gradient(transparent,transparent)";this.maskPixels=new Uint8ClampedArray(this.maskWidth*this.maskHeight*4);this.element.dataset.visibleFraction="0";}
+    // An existing frame stays intact until the replacement geometry and mask
+    // are ready together. Never clear a valid mask in the middle of navigation.
+    this.preparedMask?.value.discard();this.preparedMask=undefined;
+    this.pendingVisual=this.onModel;
     this.state.section = isSection(section) ? section : "home";
     this.state.recordId = recordId;
     this.state.root = root;
@@ -180,14 +201,13 @@ export class FolderFacePanel {
     if (!this.shown) this.progress = reduced ? 1 : 0;
     this.shown = true;
     this.element.hidden = false;
-    this.element.inert = this.externallyInert;
-    this.element.dataset.section = this.state.section;
-    this.element.dataset.root = String(root);
+    this.element.inert = this.externallyInert || this.pendingVisual;
+    if(!this.pendingVisual){this.element.dataset.section=this.state.section;this.element.dataset.root=String(root);}
     this.element.dataset.reduced = String(reduced);
     this.lastTime = performance.now();
     this.renderSignature = "";
     this.refresh();
-    this.paint();
+    if(!this.pendingVisual)this.paint();
   }
   hide(reduced = this.reduced) {
     if (!this.shown && this.target === 0) {
@@ -221,7 +241,7 @@ export class FolderFacePanel {
   }
 
   refresh() {
-    if (!this.shown) return;
+    if (!this.shown || this.pendingVisual) return;
     this.layerLayoutDirty=true;
     const downloads = (records as PresentationRecord[]).filter(r=>r.kind === "download");
     this.element.querySelector(".ff-downloads")!.innerHTML = downloads.map(record=>`<div class="ff-download"><div class="ff-section-heading"><strong>${h(record.title)}</strong>${actions(record).map(a=>this.actionButton(record,a,"inline")).join("")}</div><progress max="1" ${typeof record.progress === "number" ? `value="${record.progress}"` : ""}></progress></div>`).join("");
@@ -250,7 +270,7 @@ export class FolderFacePanel {
     this.header.innerHTML = `<div class="ff-heading"><span class="ff-code">${h(record.displayCode ?? `SKP / ${String(record.code ?? 1).padStart(3, "0")}`)}</span>
       <div class="ff-title-row">${!root ? `<button class="ff-icon ff-back" data-command="back" title="返回${sections[this.state.section].label}" aria-label="返回${sections[this.state.section].label}"><span aria-hidden="true">←</span></button>` : ""}
       <h2>${h(title)}</h2><span class="ff-header-tools">${!root ? `<button class="ff-icon" data-command="bookmark" title="${bookmarked ? "移出常用" : "加入常用"}" aria-label="${bookmarked ? "移出常用" : "加入常用"}" aria-pressed="${bookmarked}"><span aria-hidden="true">${bookmarked ? "★" : "☆"}</span></button>` : ""}
-      <button class="ff-icon ff-browse" data-command="browse" title="浏览阵列" aria-label="浏览阵列"><span class="ff-array-mark" aria-hidden="true"></span></button></span></div>
+      <button class="ff-icon ff-browse" data-command="browse" title="浏览阵列" aria-label="浏览阵列"><svg class="ff-array-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5.5h11.5L20 9v9.5H4zM15.5 5.5V9H20M7 12.5h8M7 15.5h5"/></svg></button></span></div>
       <div class="ff-subtitle">${status ? `<span class="ff-status" data-tone="${h(status.tone ?? "neutral")}"><i aria-hidden="true"></i>${h(status.label)}</span>` : ""}<span>${h(root ? record.abstract : record.en)}</span></div></div>`;
     const list = root && ["authorization", "modules", "market"].includes(this.state.section);
     this.queryRow.hidden = !list;
@@ -356,13 +376,51 @@ export class FolderFacePanel {
     }
   }
 
-  update(scene: { projectCard(x: number, y: number,z?:number): number[]; workHeightScale?:number; deviceTilt?:{x:number;y:number}; folderMask?(): FolderDepthSample|Promise<FolderDepthSample> } | undefined, active = true, _dt?: number) {
+  update(scene: FaceScene | undefined, active = true, _dt?: number) {
     const now = performance.now();
     const elapsed = Math.min(100, Math.max(0, now - (this.lastTime || now)));
     this.lastTime = now;
     if ((!active && this.target !== 0) || this.element.hidden) return;
+    this.progress = this.reduced ? this.target : this.target > this.progress
+      ? Math.min(this.target, this.progress + elapsed / 280) : this.target < this.progress
+        ? Math.max(this.target, this.progress - elapsed / 180) : this.progress;
     this.onModel = Boolean(scene);
+    let presentFrame:number|undefined;
     if (scene) {
+      if(scene.folderFrameSynchronized&&scene.presentFolderFrame){
+        const prepared=this.preparedMask;
+        if(prepared&&(prepared.epoch!==this.maskEpoch||prepared.frame!==scene.pendingFolderFrame)){
+          prepared.value.discard();this.preparedMask=undefined;
+        }
+        if(this.preparedMask){
+          presentFrame=this.preparedMask.frame;
+          this.preparedMask.value.commit();this.preparedMask=undefined;
+          this.element.style.removeProperty("visibility");
+          if(this.pendingVisual){
+            this.pendingVisual=false;this.element.dataset.section=this.state.section;this.element.dataset.root=String(this.state.root);
+            this.element.inert=this.externallyInert||!this.shown;this.refresh();
+          }
+        }else{
+          const frame=scene.pendingFolderFrame;
+          if(frame!==undefined&&!this.maskPending&&scene.folderMask){
+            if(this.maskSource!==scene){
+              this.maskSource=scene;this.maskEpoch++;this.maskHash=-1;
+              this.element.style.maskImage="linear-gradient(transparent,transparent)";
+              this.maskPixels=new Uint8ClampedArray(this.maskWidth*this.maskHeight*4);
+            }
+            this.maskPending=true;const epoch=this.maskEpoch;
+            Promise.resolve().then(()=>scene.folderMask!()).then(sample=>this.prepareMask(sample)).then(value=>{
+              if(epoch!==this.maskEpoch||frame!==scene.pendingFolderFrame){value.discard();return;}
+              this.preparedMask={frame,epoch,value};
+            }).catch(()=>{
+              // Keep the last complete frame through transient GPU/codec errors.
+              this.maskRetries++;this.element.dataset.maskRetries=String(this.maskRetries);
+            }).finally(()=>{this.maskPending=false;});
+          }
+          if(frame===undefined&&!this.pendingVisual)this.paint();
+          return;
+        }
+      }
       this.heightScale = scene.workHeightScale ?? WORKING_HEIGHT;
       const stage = this.viewport.querySelector<HTMLElement>("#stage");
       const stageRect = stage?.getBoundingClientRect();
@@ -377,12 +435,12 @@ export class FolderFacePanel {
       this.element.dataset.plane = "model-front";
       this.element.dataset.corners = JSON.stringify(corners);
       if(this.maskSource!==scene){this.maskSource=scene;this.maskEpoch++;this.maskHash=-1;}
-      if (scene.folderMask && !this.maskPending && now-this.lastMaskTime>=32) {
+      if (!scene.folderFrameSynchronized && scene.folderMask && !this.maskPending && now-this.lastMaskTime>=32) {
         this.lastMaskTime=now;
         this.maskPending=true;
         const epoch=this.maskEpoch;
-        Promise.resolve().then(()=>scene.folderMask!()).then(sample=>{
-          if(epoch===this.maskEpoch&&this.onModel)return this.updateMask(sample,epoch);
+        Promise.resolve().then(()=>scene.folderMask!()).then(sample=>this.prepareMask(sample)).then(value=>{
+          if(epoch===this.maskEpoch&&this.onModel)value.commit();else value.discard();
         }).catch(()=>{
           if(epoch!==this.maskEpoch)return;
           this.element.style.maskImage="linear-gradient(transparent,transparent)";
@@ -390,9 +448,13 @@ export class FolderFacePanel {
         }).finally(()=>{this.maskPending=false;});
       }
     } else {
+      this.element.style.removeProperty("visibility");
+      if(this.pendingVisual){this.pendingVisual=false;this.element.dataset.section=this.state.section;this.element.dataset.root=String(this.state.root);this.element.inert=this.externallyInert||!this.shown;this.refresh();}
+      this.preparedMask?.value.discard();this.preparedMask=undefined;
       if(this.maskSource){this.maskSource=undefined;this.maskEpoch++;}
       this.anchored = undefined;
       this.element.dataset.plane = "fallback";
+      this.maskRects=undefined;this.element.style.clipPath="none";
       this.element.style.maskImage="none"; this.maskPixels=undefined; this.maskHash=-1;
       for (const node of [this.header, this.queryRow, this.scroller, this.footer]) {
         node.style.removeProperty("transform");
@@ -403,17 +465,19 @@ export class FolderFacePanel {
       this.element.style.setProperty("--control-float-y", "0px");
       this.layerLayoutDirty = true;
     }
-    this.progress = this.reduced ? this.target : this.target > this.progress
-      ? Math.min(this.target, this.progress + elapsed / 280) : this.target < this.progress
-        ? Math.max(this.target, this.progress - elapsed / 180) : this.progress;
     this.paint();
     if(scene)this.paintLayers(scene);
+    if(scene&&presentFrame!==undefined){
+      scene.presentFolderFrame!(presentFrame);
+      this.element.dataset.folderFrame=String(presentFrame);
+    }
     if (!this.shown && this.progress <= 0) this.element.hidden = true;
   }
-  private async updateMask(sample:FolderDepthSample,epoch:number) {
+  private async prepareMask(sample:FolderDepthSample):Promise<PreparedMask> {
     const {width,height,pixels,quad}=sample;
     const mw=this.maskWidth,mh=this.maskHeight;
-    if(sample.solid){this.element.style.maskImage="none";this.maskPixels=undefined;this.maskHash=-1;this.element.dataset.visibleFraction="1";return;}
+    const solid=():PreparedMask=>({commit:()=>{this.element.style.maskImage="none";this.maskPixels=undefined;this.maskRects=undefined;this.element.style.clipPath="none";this.maskHash=-1;this.element.dataset.visibleFraction="1";},discard:()=>{}});
+    if(sample.solid)return solid();
     const matrix=hudQuadMatrix(mw,mh,quad.map(([x,y])=>({x,y})));
     const output=new Uint8ClampedArray(mw*mh*4);
     let visible=0,hash=2166136261;
@@ -425,25 +489,50 @@ export class FolderFacePanel {
       const i=(y*mw+x)*4;output[i]=output[i+1]=output[i+2]=255;output[i+3]=alpha;
       visible+=alpha/255;hash=Math.imul(hash^alpha,16777619);
     }
-    if(hash===this.maskHash)return;
-    this.maskHash=hash;
-    if(visible===mw*mh){this.element.style.maskImage="none";this.maskPixels=undefined;this.element.dataset.visibleFraction="1";return;}
+    if(hash===this.maskHash)return {commit:()=>{},discard:()=>{}};
+    if(visible===mw*mh)return solid();
+    if(this.numericClip){
+      // Merge identical visible runs vertically. The result is the exact GPU
+      // raster union, including holes, without PNG encoding, decoding or uploads.
+      const rects:{x:number;y:number;width:number;height:number}[]=[];
+      let previous=new Map<string,number>();
+      for(let y=0;y<mh;y++){
+        const current=new Map<string,number>();
+        for(let x=0;x<mw;){
+          if(output[(y*mw+x)*4+3]<128){x++;continue;}
+          const start=x;while(x<mw&&output[(y*mw+x)*4+3]>=128)x++;
+          const key=`${start}:${x}`,prior=previous.get(key);
+          const index=prior??rects.length;
+          if(prior===undefined)rects.push({x:start,y,width:x-start,height:1});else rects[prior].height++;
+          current.set(key,index);
+        }
+        previous=current;
+      }
+      return {commit:()=>{
+        this.maskPixels=output;this.maskHash=hash;this.maskRects=rects;
+        this.element.style.maskImage="none";
+        this.element.dataset.maskTransport="numeric-clip";
+        this.element.dataset.visibleFraction=String(visible/(mw*mh));
+      },discard:()=>{}};
+    }
     this.maskCanvas.width=mw;this.maskCanvas.height=mh;
     this.maskCanvas.getContext("2d")!.putImageData(new ImageData(output,mw,mh),0,0);
     const blob=await new Promise<Blob|null>(resolve=>this.maskCanvas.toBlob(resolve,"image/png"));
     if(!blob)throw new Error("Visibility mask encoding failed");
-    if(epoch!==this.maskEpoch)return;
     const url=URL.createObjectURL(blob),image=new Image();
     image.src=url;
     try{await image.decode();}catch(error){URL.revokeObjectURL(url);throw error;}
-    if(epoch!==this.maskEpoch){URL.revokeObjectURL(url);return;}
-    const previous=this.maskUrl;this.maskUrl=url;
-    this.maskPixels=output;
-    this.element.dataset.visibleFraction=String(visible/(mw*mh));
-    this.element.style.maskImage=`url(${url})`;
-    if(previous)URL.revokeObjectURL(previous);
-    this.element.style.maskSize="100% 100%";
-    this.element.style.maskRepeat="no-repeat";
+    return {commit:()=>{
+      const previous=this.maskUrl;this.maskUrl=url;
+      this.maskPixels=output;this.maskHash=hash;
+      this.maskRects=undefined;this.element.style.clipPath="none";
+      this.element.dataset.maskTransport="image-fallback";
+      this.element.dataset.visibleFraction=String(visible/(mw*mh));
+      this.element.style.maskImage=`url(${url})`;
+      if(previous)URL.revokeObjectURL(previous);
+      this.element.style.maskSize="100% 100%";
+      this.element.style.maskRepeat="no-repeat";
+    },discard:()=>URL.revokeObjectURL(url)};
   }
   private pointVisible(clientX:number,clientY:number) {
     if(!this.maskPixels)return true;
@@ -476,6 +565,12 @@ export class FolderFacePanel {
     const quad = this.onModel && this.anchored ? this.anchored : destination;
     this.surfaceMatrix = hudQuadMatrix(w, frameHeight, quad);
     this.element.style.transform = `matrix3d(${this.surfaceMatrix.join(",")})`;
+    if(this.maskRects){
+      const sx=w/this.maskWidth,sy=frameHeight/this.maskHeight;
+      const n=(value:number)=>Math.round(value*1000)/1000;
+      const path=this.maskRects.map(r=>`M${n(r.x*sx)} ${n(r.y*sy)}h${n(r.width*sx)}v${n(r.height*sy)}h${n(-r.width*sx)}Z`).join("");
+      this.element.style.clipPath=`path("${path||'M0 0Z'}")`;
+    }
     this.element.style.opacity = String(this.progress === 0 && !this.shown ? 0 : amount);
     this.element.dataset.expanded = String(this.progress === 1);
   }
@@ -508,5 +603,5 @@ export class FolderFacePanel {
     this.element.style.setProperty('--control-float-x',`${tilt.x*1.8}px`);
     this.element.style.setProperty('--control-float-y',`${tilt.y*1.5}px`);
   }
-  dispose() { this.maskEpoch++;if(this.maskUrl)URL.revokeObjectURL(this.maskUrl);this.resize.disconnect(); this.element.remove(); }
+  dispose() { this.maskEpoch++;this.preparedMask?.value.discard();if(this.maskUrl)URL.revokeObjectURL(this.maskUrl);this.resize.disconnect(); this.element.remove(); }
 }

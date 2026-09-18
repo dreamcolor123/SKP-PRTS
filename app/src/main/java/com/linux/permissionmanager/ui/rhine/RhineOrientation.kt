@@ -14,6 +14,7 @@ import kotlin.math.atan2
 import kotlin.math.exp
 import kotlin.math.sign
 
+/** Screen-space normal tilt: +x points right and +y points down, independent of world up. */
 internal data class RhineTilt(val x: Double = 0.0, val y: Double = 0.0)
 
 /** Relative matrices avoid Euler-angle discontinuities when the phone is upright. */
@@ -45,13 +46,17 @@ internal class RhineOrientationFilter {
             baseline[index * 3 + row].toDouble() * matrix[index * 3 + col]
         }
         val z = relative(2, 2)
+        // The relative face-normal angles use the neutral device axes. Apply
+        // the display transform to the angles (rather than raw components),
+        // preserving atan2's quadrant at steep poses. x is screen-right and
+        // y is screen-down for every Surface rotation.
         val deviceX = atan2(relative(0, 2), z)
         val deviceY = atan2(-relative(1, 2), z)
         val screen = remap(deviceX, deviceY, displayRotation)
         val target = RhineTilt(normalize(screen.x), normalize(screen.y))
         val dt = ((timeNanos - timestamp) / 1_000_000_000.0).coerceAtMost(0.1)
         timestamp = timeNanos
-        val alpha = 1.0 - exp(-dt / 0.16)
+        val alpha = 1.0 - exp(-dt / 0.12)
         current = RhineTilt(
             current.x + (target.x - current.x) * alpha,
             current.y + (target.y - current.y) * alpha,
@@ -61,7 +66,7 @@ internal class RhineOrientationFilter {
 
     companion object {
         private const val DEAD_ZONE = 0.006
-        private val FULL_SCALE = 12.0 * PI / 180.0
+        private val FULL_SCALE = 10.0 * PI / 180.0
 
         internal fun normalize(angle: Double): Double {
             if (!angle.isFinite() || abs(angle) <= DEAD_ZONE) return 0.0

@@ -66,16 +66,36 @@ export class ArchiveScene {
   private motionTarget = { x:0, y:0 };
   private motionTilt = { x:0, y:0 };
   setDeviceTilt(x:number,y:number) { this.motionTarget=boundedTilt(x,y); }
+  /** Keep the camera in its established work-surface shot for section hops. */
+  setWorkspaceNavigation(active: boolean) { this.quickWorkspaceNavigation = active; }
   get workHeightScale() { return this.heightScale; }
   get deviceTilt() { return this.motionTilt; }
   private faceDepth?: FolderDepthMask;
   private faceDepthFrame = -1;
   private faceDepthSample?: ReturnType<FolderDepthMask["sampleAsync"]>;
   private faceDepthPending = false;
+  private folderFrameSync = false;
+  private folderPaintPending = false;
+  private folderFrameSequence = 0;
+  private folderPresentedSequence = 0;
+  setFolderFrameSync(enabled:boolean) {
+    if(this.folderFrameSync===enabled)return;
+    this.folderFrameSync=enabled;this.folderPaintPending=false;this.folderFrameSequence++;
+    this.faceDepthFrame=-1;this.renderState.invalidate();
+  }
+  get pendingFolderFrame() { return this.folderFrameSync&&this.folderPaintPending?this.folderFrameSequence:undefined; }
+  get folderFrameSynchronized() { return this.folderFrameSync; }
+  presentFolderFrame(sequence:number) {
+    if(this.pendingFolderFrame!==sequence)return false;
+    this.paintScene();this.folderPresentedSequence=sequence;this.folderPaintPending=false;
+    this.renderer.domElement.dataset.folderFrame=String(sequence);
+    return true;
+  }
   folderMask() {
     this.faceDepth ??= new FolderDepthMask(this.renderer,this.scene,this.camera,this.model);
-    if(!this.faceDepthPending&&(!this.faceDepthSample || this.faceDepthFrame !== this.renderedFrames)) {
-      this.faceDepthFrame=this.renderedFrames;
+    const frame=this.folderFrameSync?this.folderFrameSequence:this.renderedFrames;
+    if(!this.faceDepthPending&&(!this.faceDepthSample || this.faceDepthFrame !== frame)) {
+      this.faceDepthFrame=frame;
       this.faceDepthPending=true;
       this.faceDepthSample=this.faceDepth.sampleAsync().catch(error=>{this.faceDepthFrame=-1;throw error;}).finally(()=>{this.faceDepthPending=false;});
     }
@@ -238,6 +258,10 @@ export class ArchiveScene {
   private selectedRecord = 0;
   private detail = 0;
   private targetDetail = 0;
+  // Section changes inside the already-open work surface should read as a
+  // short lateral move.  The archive-to-detail entry still uses the authored
+  // pull-in; main.ts toggles this only for an existing workspace session.
+  private quickWorkspaceNavigation = false;
   private reveal = 0;
   private targetReveal = 0;
   private last = 0;
@@ -593,6 +617,7 @@ export class ArchiveScene {
     };
   }
   setMode(mode: "hidden" | "archive" | "detail") {
+    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;this.renderState.invalidate();
     this.cancelPointer();
     this.setHover(null);
     if (mode === "detail") this.decryption.enter(this.scanBlend > .9 && this.decryption.clarity > .999);
@@ -710,6 +735,8 @@ export class ArchiveScene {
     }
   }
   select(index: number, navigation?: ArchiveNavigation) {
+    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;
+    this.renderState.invalidate();
     this.selectedRecord = index;
     if (!this.navigatingDrag) this.cancelPointer();
     this.setHover(null);
@@ -835,6 +862,7 @@ export class ArchiveScene {
     this.instanceCapacity = capacity;
   }
   resize() {
+    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;this.renderState.invalidate();
     this.renderState.invalidate();
     const w = this.container.clientWidth,
       h = this.container.clientHeight;
@@ -1212,6 +1240,9 @@ export class ArchiveScene {
     time: number,
     cinematic?: { reveal: number; lift: number; zoom: number; time: number },
   ) {
+    // Keep simulation, camera and geometry immutable until their asynchronous
+    // depth mask is ready. The previous canvas remains visible in the meantime.
+    if(this.folderFrameSync&&(this.folderPaintPending||this.faceDepthPending))return;
     const elapsed = Math.max(0, time - this.last || 0.016);
     const dt = Math.min(elapsed, 0.05);
     this.last = time;
@@ -1415,7 +1446,13 @@ export class ArchiveScene {
         );
       }
     }
-    const cameraTarget = this.targetDetail
+    // Once a work-surface card is open, switching sections should keep the
+    // established close shot.  The selected cassette still rises and the
+    // face projection follows it, but the lens does not pull back through the
+    // archive on every navigation tap.
+    const cameraTarget = this.quickWorkspaceNavigation && working
+      ? 1
+      : this.targetDetail
       ? ease((this.lift.value / this.heightScale - 0.8) / 2.4)
       : this.returnY !== null
         ? this.detail
@@ -1556,8 +1593,13 @@ export class ArchiveScene {
         .lerp(new THREE.Vector3(-0.277, 0.238, 0.931), detail)
         .normalize();
       if (working && !this.reduced) {
-        viewDirection.applyAxisAngle(new THREE.Vector3(0,1,0),this.motionTilt.x*.036);
-        viewDirection.applyAxisAngle(new THREE.Vector3(1,0,0),this.motionTilt.y*.030);
+        // Sensor values are screen axes. World X/Y would mix those axes in
+        // this oblique camera and make left/right input look like a vertical
+        // orbit. Use the current camera basis for both independent tilts.
+        const screenRight = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),viewDirection).normalize();
+        const screenUp = new THREE.Vector3().crossVectors(viewDirection,screenRight).normalize();
+        viewDirection.applyAxisAngle(screenUp,this.motionTilt.x*.054);
+        viewDirection.applyAxisAngle(screenRight,this.motionTilt.y*.045);
       }
     }
     if (cinematic) {
@@ -1654,6 +1696,16 @@ export class ArchiveScene {
       const detailAim = this.model.position
         .clone()
         .add(new THREE.Vector3(0, 1.85 * this.heightScale, 0));
+      if (this.quickWorkspaceNavigation && working) {
+        // Follow a small fraction of the remaining track displacement, not
+        // the newly selected card's full extraction height. The cassette and
+        // its projected UI can rise through the stationary close shot.
+        detailAim.set(
+          THREE.MathUtils.clamp((chosen.x - trackX) * .14, -.65, .65),
+          chosen.y + settlingWave(0, 26.56) + (INSPECTION_LIFT + 1.85) * this.heightScale,
+          -2.17 + THREE.MathUtils.clamp((chosen.z + entryZ + this.rail.value + 2.17) * .14, -.35, .35),
+        );
+      }
       detailAim.addScaledVector(right, (0.5 - framing.detailX) * width / pixelScale);
       detailAim.addScaledVector(up, (framing.detailY - 0.5) * height / pixelScale);
       cameraAim.lerp(detailAim, detail);
@@ -1803,6 +1855,10 @@ export class ArchiveScene {
       });
       if (!state.end()) { this.reusedFrames++; return; }
     }
+    if(this.folderFrameSync){this.folderPaintPending=true;this.folderFrameSequence++;return;}
+    this.paintScene();
+  }
+  private paintScene() {
     this.renderedFrames++;
     this.renderer.shadowMap.needsUpdate = true;
     if (this.superPerformance) this.renderer.render(this.scene, this.camera);
@@ -1832,6 +1888,7 @@ export class ArchiveScene {
       workHeightScale: this.heightScale,
       deviceTilt: {...this.motionTilt},
       folderMask: this.faceDepth?.stats,
+      folderFrame: {pending:this.pendingFolderFrame,presented:this.folderPresentedSequence,synchronized:this.folderFrameSync},
       decryption: { ...this.decryption.frame, clarity: this.decryption.clarity },
       topLeft: project(-2.5, 3.7, 0),
       topRight: project(2.5, 3.7, 0),
@@ -1895,6 +1952,8 @@ export class ArchiveScene {
       extraction: Math.round(this.lift.value * 1000) / 1000,
       appearance: Math.round(ease(this.lift.value / 0.4) * 1000) / 1000,
       cameraDetail: Math.round(this.detail * 1000) / 1000,
+      cameraNavigation: this.quickWorkspaceNavigation ? "workspace-pan" : "archive-entry",
+      cameraAim: this.cameraAim.toArray(),
       idleGain: this.idleGain,
       flatten: this.flatMix,
       spectrumActivity: this.playfield.bands.activity,

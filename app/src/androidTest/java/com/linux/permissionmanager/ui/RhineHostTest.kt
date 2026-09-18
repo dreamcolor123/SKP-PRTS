@@ -245,6 +245,34 @@ class RhineHostTest {
         capture("tall-overview-floating-nav")
     }
 
+    @Test fun delayedDepthMasksPresentWithTheMatchingCanvas() {
+        show(completed = true)
+        await("first matched frame") { (it.optJSONObject("folderFrame")?.optInt("presented", 0) ?: 0) > 0 }
+        eval("""(()=>{
+            const wait=WebGL2RenderingContext.prototype.clientWaitSync,times=new WeakMap();
+            window.restoreMaskEncoder=()=>{WebGL2RenderingContext.prototype.clientWaitSync=wait;};
+            WebGL2RenderingContext.prototype.clientWaitSync=function(sync,...args){
+                if(!times.has(sync))times.set(sync,performance.now());
+                if(performance.now()-times.get(sync)<80)return this.TIMEOUT_EXPIRED;
+                return wait.call(this,sync,...args);
+            };
+            window.rhine.workspace('authorization');return true;
+        })()""")
+        repeat(20) {
+            val pair = eval("""(()=>{
+                const panel=document.querySelector('.folder-face-panel'),canvas=document.querySelector('#three-scene canvas');
+                return {panel:panel.dataset.folderFrame,canvas:canvas.dataset.folderFrame,retries:Number(panel.dataset.maskRetries||0)};
+            })()""") as JSONObject
+            assertEquals("Mismatched depth/canvas frame: $pair", pair.getString("canvas"), pair.getString("panel"))
+            assertEquals(0, pair.getInt("retries"))
+            SystemClock.sleep(40)
+        }
+        eval("window.restoreMaskEncoder();true")
+        await("readable surface after delayed readback") { (it.optJSONObject("face")?.optDouble("visibleFraction", 0.0) ?: 0.0) > .9 && it.optBoolean("canInspect") }
+        assertEquals(0, inspect().getJSONObject("folderMask").getInt("syncReads"))
+        capture("matched-depth-frame")
+    }
+
     private fun show(completed: Boolean = false, time: Double = 1.76, restored: String? = null) {
         compose.setContent {
             root.set(LocalView.current)
