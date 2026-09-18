@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -42,12 +43,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.linux.permissionmanager.data.LogPayload
 import com.linux.permissionmanager.data.AppearanceSettings
 import com.linux.permissionmanager.data.UiEffect
 import com.linux.permissionmanager.ui.*
-import com.linux.permissionmanager.ui.components.GlassFloatingNavigationBar
+import com.linux.permissionmanager.ui.rhine.*
 import com.linux.permissionmanager.ui.components.GlassNavigationItem
+import com.linux.permissionmanager.ui.components.TerminalNavigation
+import com.linux.permissionmanager.ui.motion.LocalMotionActive
+import com.linux.permissionmanager.ui.motion.TerminalBootOverlay
+import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
 import com.linux.permissionmanager.ui.screens.*
 import com.linux.permissionmanager.ui.theme.AppearanceBackground
 import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
@@ -57,8 +63,6 @@ import com.linux.permissionmanager.utils.FileUtils
 import com.linux.permissionmanager.utils.GetAppListPermissionHelper
 import com.linux.permissionmanager.utils.ModuleWebUiShortcut
 import com.linux.permissionmanager.utils.UrlIntentUtils
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -103,7 +107,6 @@ private fun SkpRoot() {
     val context = LocalContext.current
     val application = context.applicationContext as PermissionManagerApplication
     val appearance by application.container.appearance.state.collectAsStateWithLifecycle()
-    val glassHazeState = remember { HazeState() }
     val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             application.container.appearance.setBackground(uri)
@@ -114,11 +117,6 @@ private fun SkpRoot() {
     SkpTheme(appearance) {
         AppearanceBackground(
             appearance = appearance,
-            backgroundModifier = if (appearance.glassNavigationEnabled) {
-                Modifier.hazeSource(glassHazeState, zIndex = 0f)
-            } else {
-                Modifier
-            },
             onImageError = {
                 if (appearance.backgroundEnabled) {
                     application.container.appearance.clearBackground()
@@ -129,14 +127,13 @@ private fun SkpRoot() {
             SkpApp(
                 application = application,
                 appearance = appearance,
-                glassHazeState = glassHazeState,
                 onPickBackground = { backgroundPicker.launch(arrayOf("image/*")) },
             )
         }
     }
 }
 
-private data class PendingLocalInstall(
+internal data class PendingLocalInstall(
     val file: File,
     val packageName: String,
 )
@@ -152,12 +149,12 @@ private val navigationItems = listOf(
 private fun SkpApp(
     application: PermissionManagerApplication,
     appearance: AppearanceSettings,
-    glassHazeState: HazeState,
     onPickBackground: () -> Unit,
 ) {
     val context = LocalContext.current
     val activity = context as MainActivity
     val factory = remember { AppViewModelFactory(application) }
+    val rhineSession: RhineSessionViewModel = viewModel()
     val mainViewModel: MainViewModel = viewModel(factory = factory)
     val homeViewModel: HomeViewModel = viewModel(factory = factory)
     val superUserViewModel: SuperUserViewModel = viewModel(factory = factory)
@@ -175,13 +172,31 @@ private fun SkpApp(
     val snackbarHostState = remember { SnackbarHostState() }
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
-    var logPayload by remember { mutableStateOf(LogPayload("日志", "")) }
-    var pendingRunOnce by remember { mutableStateOf(false) }
-    var pendingStorageAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var bootVisible by rememberSaveable { mutableStateOf(false) }
+    var logPayload by rhineSession.logPayload
+    var pendingRunOnce by rhineSession.pendingRunOnce
+    var pendingStorageAction by rhineSession.pendingStorage
     var missingAppListPermission by remember { mutableStateOf(!GetAppListPermissionHelper.getPermissions(activity)) }
-    var pendingExport by remember { mutableStateOf<File?>(null) }
-    var pendingInstall by remember { mutableStateOf<PendingLocalInstall?>(null) }
+    var pendingExport by rhineSession.pendingExport
+    var pendingInstall by rhineSession.pendingInstall
+    var basicManagement by rhineSession.basicManagement
+    val currentEntry by navController.currentBackStackEntryAsState()
+    val systemMotionEnabled = rememberTerminalMotionEnabled()
     val installResultAction = remember(context.packageName) { "${context.packageName}.LOCAL_INSTALL_RESULT" }
+
+    fun performStorageAction(action: RhineStorageAction) {
+        when (action) {
+            RhineStorageAction.REQUEST -> Unit
+            RhineStorageAction.IMPORT_HOTLOAD -> mainViewModel.importHotloadFile()
+            RhineStorageAction.EXPORT_HOTLOAD -> mainViewModel.exportHotloadFile()
+            RhineStorageAction.EXPORT_LOG -> {
+                val file = FileUtils.makeSdcardLogFile("skroot_log_", ".txt")
+                FileUtils.writeTextAsync(activity, file, logPayload.content, true) { ok, out, error ->
+                    scope.launch { snackbarHostState.showSnackbar(if (ok) "已导出至 ${out.absolutePath}" else "导出失败：$error") }
+                }
+            }
+        }
+    }
 
     val submitLocalInstall: (PendingLocalInstall) -> Unit = { request ->
         scope.launch {
@@ -223,6 +238,7 @@ private fun SkpApp(
     val unknownSourceSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val request = pendingInstall
         if (request == null) return@rememberLauncherForActivityResult
+        pendingInstall = null
         if (canRequestPackageInstalls(context)) {
             submitLocalInstall(request)
         } else {
@@ -234,15 +250,21 @@ private fun SkpApp(
     // ACTION_GET_CONTENT also exposes third-party file managers. OpenDocument
     // is tied to document providers and hid common standalone file managers.
     val modulePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) moduleViewModel.installUri(uri, pendingRunOnce)
+        val runOnce = pendingRunOnce
+        pendingRunOnce = false
+        if (uri != null) moduleViewModel.installUri(uri, runOnce)
     }
     val storageSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (hasStorageAccess(context)) pendingStorageAction?.invoke()
+        val action = pendingStorageAction
+        pendingStorageAction = null
+        if (hasStorageAccess(context)) action?.let(::performStorageAction)
         else scope.launch { snackbarHostState.showSnackbar("未授予存储访问权限") }
         pendingStorageAction = null
     }
     val legacyStoragePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.values.all { it }) pendingStorageAction?.invoke()
+        val action = pendingStorageAction
+        pendingStorageAction = null
+        if (result.values.all { it }) action?.let(::performStorageAction)
         else scope.launch { snackbarHostState.showSnackbar("未授予存储访问权限") }
         pendingStorageAction = null
     }
@@ -289,9 +311,9 @@ private fun SkpApp(
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    fun withStorageAccess(action: () -> Unit) {
+    fun withStorageAccess(action: RhineStorageAction) {
         if (hasStorageAccess(context)) {
-            action()
+            performStorageAction(action)
             return
         }
         pendingStorageAction = action
@@ -323,7 +345,7 @@ private fun SkpApp(
     LaunchedEffect(Unit) {
         application.container.events.events.collect { effect ->
             when (effect) {
-                is UiEffect.Snackbar -> snackbarHostState.showSnackbar(effect.message)
+                is UiEffect.Snackbar -> scope.launch { snackbarHostState.showSnackbar(effect.message) }
                 is UiEffect.OpenUrl -> UrlIntentUtils.openUrl(context, effect.url)
                 is UiEffect.CopyText -> {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -369,7 +391,7 @@ private fun SkpApp(
                     }
                 }
                 UiEffect.ShowRootConfig -> mainViewModel.showRootConfig()
-                UiEffect.RequestStorageAccess -> withStorageAccess {}
+                UiEffect.RequestStorageAccess -> withStorageAccess(RhineStorageAction.REQUEST)
                 UiEffect.FinishActivity -> activity.finish()
             }
         }
@@ -377,13 +399,36 @@ private fun SkpApp(
 
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
+            if (!basicManagement) {
+                Box(Modifier.fillMaxSize()) {
+                    RhineManagement(
+                        application = application,
+                        session = rhineSession,
+                        main = mainViewModel,
+                        home = homeViewModel,
+                        authorization = superUserViewModel,
+                        modules = moduleViewModel,
+                        settings = settingsViewModel,
+                        customizer = localCustomizerViewModel,
+                        active = !mainState.rootConfig.visible && !mainState.rootConfig.busy && !localCustomizerState.visible &&
+                            !missingAppListPermission && (currentEntry?.destination?.route ?: "main") == "main",
+                        audioActive = (currentEntry?.destination?.route ?: "main") == "main",
+                        reducedMotion = !systemMotionEnabled,
+                        onConsole = { logPayload = LogPayload("控制台", it); navController.navigate("log") },
+                        onLegacyAppearance = { mainViewModel.selectPage(3); basicManagement = true },
+                    )
+                    SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+                }
+            } else {
+            Column(Modifier.fillMaxSize()) {
+                TextButton(onClick = { basicManagement = false }, modifier = Modifier.statusBarsPadding()) { Text("← 返回 SKRoot Pro 终端") }
+                Box(Modifier.weight(1f)) {
             AdaptiveMainScreen(
                 selectedPage = mainState.selectedPage,
                 onPageSelected = mainViewModel::selectPage,
                 snackbarHostState = snackbarHostState,
-                glassNavigationEnabled = appearance.glassNavigationEnabled,
-                glassNavigationTransparency = appearance.glassNavigationTransparency,
-                glassHazeState = glassHazeState,
+                motionEnabled = appearance.motionEnabled,
+                contentActive = !bootVisible && !mainState.rootConfig.visible && !mainState.rootConfig.busy && !localCustomizerState.visible,
                 home = {
                     HomeScreen(
                         state = homeState,
@@ -468,9 +513,17 @@ private fun SkpApp(
                         onClearBackground = application.container.appearance::clearBackground,
                         onResetAppearance = application.container.appearance::reset,
                         onOpenLocalCustomizer = localCustomizerViewModel::show,
+                        onThemeModeChange = application.container.appearance::setThemeMode,
+                        onMotionEnabledChange = application.container.appearance::setMotionEnabled,
+                        onSceneEnabledChange = application.container.appearance::setSceneEnabled,
+                        onSceneQualityChange = application.container.appearance::setSceneQuality,
+                        onReplayBoot = { bootVisible = true },
                     )
                 },
             )
+                }
+            }
+            }
         }
         composable("log") {
             LogScreen(
@@ -479,12 +532,7 @@ private fun SkpApp(
                 onBack = { navController.popBackStack() },
                 onCopy = { application.container.events.emit(UiEffect.CopyText(logPayload.content)) },
                 onExport = {
-                    withStorageAccess {
-                        val file = FileUtils.makeSdcardLogFile("skroot_log_", ".txt")
-                        FileUtils.writeTextAsync(activity, file, logPayload.content, true) { ok, out, error ->
-                            scope.launch { snackbarHostState.showSnackbar(if (ok) "已导出至 ${out.absolutePath}" else "导出失败：$error") }
-                        }
-                    }
+                    withStorageAccess(RhineStorageAction.EXPORT_LOG)
                 },
             )
         }
@@ -509,9 +557,10 @@ private fun SkpApp(
             onDismiss = mainViewModel::dismissRootConfig,
             onRootKeyChange = mainViewModel::updateRootKey,
             onModeChange = mainViewModel::updateMode,
-            onImport = { withStorageAccess(mainViewModel::importHotloadFile) },
-            onExport = { withStorageAccess(mainViewModel::exportHotloadFile) },
+            onImport = { withStorageAccess(RhineStorageAction.IMPORT_HOTLOAD) },
+            onExport = { withStorageAccess(RhineStorageAction.EXPORT_HOTLOAD) },
             onConfirm = mainViewModel::saveRootConfig,
+            startup = !rhineSession.bootCompleted.value && mainState.activeRootKey.isBlank() && !basicManagement,
         )
     } else if (mainState.rootConfig.busy) {
         BusyDialog("正在加载热启动补丁，预计需要 1 分钟…")
@@ -526,6 +575,9 @@ private fun SkpApp(
             confirmButton = { Button(onClick = { missingAppListPermission = false; activity.finish() }) { Text("确定") } },
         )
     }
+    if (bootVisible) {
+        TerminalBootOverlay(onDismiss = { bootVisible = false })
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -534,15 +586,15 @@ private fun AdaptiveMainScreen(
     selectedPage: Int,
     onPageSelected: (Int) -> Unit,
     snackbarHostState: SnackbarHostState,
-    glassNavigationEnabled: Boolean,
-    glassNavigationTransparency: Float,
-    glassHazeState: HazeState,
+    motionEnabled: Boolean,
+    contentActive: Boolean,
     home: @Composable (PaddingValues) -> Unit,
     superUser: @Composable (PaddingValues) -> Unit,
     modules: @Composable (PaddingValues) -> Unit,
     settings: @Composable (PaddingValues) -> Unit,
 ) {
     val pagerState = rememberPagerState(initialPage = selectedPage, pageCount = { 4 })
+    val animationsAllowed = rememberTerminalMotionEnabled() && motionEnabled
     val scope = rememberCoroutineScope()
     val latestSelectedPage by rememberUpdatedState(selectedPage)
     val latestOnPageSelected by rememberUpdatedState(onPageSelected)
@@ -564,7 +616,7 @@ private fun AdaptiveMainScreen(
             try {
                 pagerState.animateScrollToPage(
                     page = page,
-                    animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                    animationSpec = tween(durationMillis = if (animationsAllowed) 260 else 0, easing = FastOutSlowInEasing),
                 )
             } finally {
                 // A newer click owns the pager now; its job will perform the final sync.
@@ -600,33 +652,15 @@ private fun AdaptiveMainScreen(
         if (maxWidth >= 600.dp) {
             Box(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxSize()) {
-                    NavigationRail(
-                        modifier = Modifier.fillMaxHeight(),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .padding(vertical = 16.dp),
-                            verticalArrangement = Arrangement.SpaceEvenly,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            navigationItems.forEachIndexed { index, item ->
-                                NavigationRailItem(
-                                    selected = navigationPage == index,
-                                    onClick = { navigateToPage(index) },
-                                    icon = { Icon(if (navigationPage == index) item.selectedIcon else item.icon, item.label) },
-                                    label = { Text(item.label) },
-                                )
-                            }
-                        }
-                    }
+                    TerminalNavigation(items = navigationItems, selectedIndex = navigationPage, onSelect = ::navigateToPage, vertical = true)
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.weight(1f),
                         beyondViewportPageCount = 3,
                     ) { page ->
-                        MainPage(page, PaddingValues(0.dp), home, superUser, modules, settings)
+                        CompositionLocalProvider(LocalMotionActive provides (contentActive && page == pagerState.currentPage && !pagerState.isScrollInProgress)) {
+                            MainPage(page, PaddingValues(0.dp), home, superUser, modules, settings)
+                        }
                     }
                 }
                 // Keep the Snackbar in the content layer and anchor it explicitly. Without
@@ -639,76 +673,11 @@ private fun AdaptiveMainScreen(
                         .padding(16.dp),
                 )
             }
-        } else if (glassNavigationEnabled) {
-            val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-            val floatingBarClearance = 88.dp + navigationBarInset
-            Box(Modifier.fillMaxSize()) {
-                CompositionLocalProvider(LocalContentDrawsBehindNavigation provides true) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .hazeSource(glassHazeState, zIndex = 1f),
-                        beyondViewportPageCount = 3,
-                    ) { page ->
-                        MainPage(
-                            page,
-                            PaddingValues(bottom = floatingBarClearance),
-                            home,
-                            superUser,
-                            modules,
-                            settings,
-                        )
-                    }
-                }
-
-                GlassFloatingNavigationBar(
-                    items = navigationItems,
-                    selectedIndex = navigationPage,
-                    hazeState = glassHazeState,
-                    transparency = glassNavigationTransparency,
-                    onItemSelected = ::navigateToPage,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                )
-
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            bottom = floatingBarClearance + 8.dp,
-                        ),
-                )
-            }
         } else {
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(
-                            alpha = LocalChromeSurfaceAlpha.current
-                        ),
-                        tonalElevation = 0.dp,
-                    ) {
-                        navigationItems.forEachIndexed { index, item ->
-                            NavigationBarItem(
-                                selected = navigationPage == index,
-                                onClick = { navigateToPage(index) },
-                                icon = {
-                                    Icon(
-                                        if (navigationPage == index) item.selectedIcon else item.icon,
-                                        item.label,
-                                    )
-                                },
-                                label = { Text(item.label) },
-                            )
-                        }
-                    }
+                    TerminalNavigation(items = navigationItems, selectedIndex = navigationPage, onSelect = ::navigateToPage)
                 },
                 containerColor = Color.Transparent,
             ) { outerPadding ->
@@ -717,7 +686,9 @@ private fun AdaptiveMainScreen(
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 3,
                 ) { page ->
-                    MainPage(page, outerPadding, home, superUser, modules, settings)
+                    CompositionLocalProvider(LocalMotionActive provides (contentActive && page == pagerState.currentPage && !pagerState.isScrollInProgress)) {
+                        MainPage(page, outerPadding, home, superUser, modules, settings)
+                    }
                 }
             }
         }

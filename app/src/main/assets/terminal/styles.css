@@ -1,0 +1,4 @@
+:root { color-scheme: light dark; }
+html, body { margin: 0; width: 100vw; height: 100vh; min-height: 100vh; overflow: hidden; background: transparent; }
+body { touch-action: pan-y; }
+#core { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh; outline: none; pointer-events: none; }

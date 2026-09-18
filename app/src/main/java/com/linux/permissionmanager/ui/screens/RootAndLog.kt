@@ -1,18 +1,34 @@
 package com.linux.permissionmanager.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import com.linux.permissionmanager.ui.rhine.RhineIcons
+import com.linux.permissionmanager.ui.rhine.RhineButton as Button
+import com.linux.permissionmanager.ui.rhine.RhineOutlinedButton as OutlinedButton
+import com.linux.permissionmanager.ui.rhine.RhineTonalButton as FilledTonalButton
+import com.linux.permissionmanager.ui.rhine.RhineTextButton as TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.linux.permissionmanager.ui.RootConfigUiState
+import com.linux.permissionmanager.R
+import com.linux.permissionmanager.ui.components.TerminalTopBar
 import com.linux.permissionmanager.ui.theme.AppearanceTokens
-import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
 
 data class RebootOption(
     val title: String,
@@ -38,23 +54,34 @@ fun RootConfigDialog(
     onImport: () -> Unit,
     onExport: () -> Unit,
     onConfirm: () -> Unit,
+    startup: Boolean = false,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.Key, null) },
-        title = { Text("Root 密钥配置") },
-        text = {
+    Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = !state.busy, dismissOnClickOutside = !startup && !state.busy)) {
+        Surface(
+            modifier = if (startup) Modifier.fillMaxSize() else Modifier.widthIn(max = 560.dp).fillMaxWidth(.94f),
+            color = MaterialTheme.colorScheme.background,
+            shape = MaterialTheme.shapes.small,
+            border = if (startup) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+        Box(Modifier.safeDrawingPadding().padding(24.dp), contentAlignment = Alignment.Center) {
             Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Text("运行模式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                if (startup) {
+                    Image(painterResource(R.drawable.skp_startup_mark), "SKRoot Pro", Modifier.width(150.dp).height(96.dp).align(Alignment.CenterHorizontally))
+                    Text("SKROOT PRO / ACCESS CONFIGURATION", style = MaterialTheme.typography.labelSmall)
+                } else Text("SKROOT PRO / ROOT CONFIGURATION", style = MaterialTheme.typography.labelSmall)
+                Text("Root 密钥配置", style = MaterialTheme.typography.headlineSmall)
+                HorizontalDivider()
+                Text("运行模式", style = MaterialTheme.typography.labelLarge)
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     listOf(false to "Boot", true to "热启动").forEachIndexed { index, (hotload, label) ->
                         SegmentedButton(
                             selected = state.hotload == hotload,
                             onClick = { onModeChange(hotload) },
-                            shape = SegmentedButtonDefaults.itemShape(index, 2),
+                            enabled = !state.busy,
+                            shape = MaterialTheme.shapes.small,
                             icon = { SegmentedButtonDefaults.Icon(state.hotload == hotload) },
                         ) { Text(label) }
                     }
@@ -69,16 +96,17 @@ fun RootConfigDialog(
                     },
                     enabled = !state.busy && state.hotloadCommand.isBlank(),
                     singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
                 )
                 if (state.hotload) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(onClick = onImport, enabled = !state.busy) {
-                            Icon(Icons.Outlined.FileOpen, null)
+                        FilledTonalButton(onClick = onImport, enabled = !state.busy, modifier = Modifier.weight(1f)) {
+                            Icon(RhineIcons.FileOpen, null)
                             Spacer(Modifier.width(8.dp))
                             Text("从 1.h 导入")
                         }
                         OutlinedButton(onClick = onExport, enabled = !state.busy && state.hotloadCommand.isNotBlank()) {
-                            Icon(Icons.Outlined.SaveAlt, null)
+                            Icon(RhineIcons.SaveAlt, null)
                             Spacer(Modifier.width(8.dp))
                             Text("导出")
                         }
@@ -91,11 +119,17 @@ fun RootConfigDialog(
                         )
                     }
                 }
+                HorizontalDivider()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss, enabled = !state.busy) { Text("取消") }
+                    Spacer(Modifier.width(12.dp))
+                    Button(onClick = onConfirm, enabled = !state.busy) { Text(if (startup) "保存并进入  →" else "确定") }
+                }
+                if (startup) Text("配置保存在本机 · 后续启动自动进入", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        },
-        confirmButton = { Button(onClick = onConfirm, enabled = !state.busy) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !state.busy) { Text("取消") } },
-    )
+        }
+        }
+    }
 }
 
 @Composable
@@ -116,7 +150,7 @@ fun RebootOptionsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.PowerSettingsNew, null) },
+        icon = { Icon(RhineIcons.PowerSettingsNew, null) },
         title = { Text("重启选项") },
         text = {
             Column {
@@ -143,7 +177,7 @@ fun RebootConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.PowerSettingsNew, null) },
+        icon = { Icon(RhineIcons.PowerSettingsNew, null) },
         title = { Text("确认重启？") },
         text = { Text("确定要${option.title}吗？") },
         confirmButton = {
@@ -167,33 +201,46 @@ fun LogScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "返回") } },
+            TerminalTopBar(
+                title = title,
+                code = "SYSTEM / EVENT LOG",
+                navigationIcon = { IconButton(onClick = onBack) { Icon(RhineIcons.ArrowBack, "返回") } },
                 actions = {
-                    IconButton(onClick = onCopy) { Icon(Icons.Outlined.ContentCopy, "复制") }
-                    IconButton(onClick = onExport) { Icon(Icons.Outlined.SaveAlt, "导出") }
+                    IconButton(onClick = onCopy) { Icon(RhineIcons.ContentCopy, "复制") }
+                    IconButton(onClick = onExport) { Icon(RhineIcons.SaveAlt, "导出") }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = AppearanceTokens.pageSurfaceAlpha),
     ) { padding ->
-        Surface(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            color = androidx.compose.ui.graphics.Color(0xFF17151A),
-            contentColor = androidx.compose.ui.graphics.Color(0xFFE7E1E8),
-            shape = MaterialTheme.shapes.extraLarge,
-        ) {
-            Text(
-                text = content.ifBlank { "(空)" },
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-            )
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("RAW OUTPUT", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
+                Text(
+                    "${if (content.isEmpty()) 0 else content.count { it == '\n' } + 1} 行",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            HorizontalDivider()
+            Surface(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                color = Color(0xFF111513),
+                contentColor = Color(0xFFEDF2EE),
+            ) {
+                SelectionContainer {
+                    Text(
+                        text = content.ifEmpty { "(空)" },
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).testTag("log-content"),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
         }
     }
 }

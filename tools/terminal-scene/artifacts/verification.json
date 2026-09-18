@@ -1,0 +1,449 @@
+{
+  "observedAt": "2026-09-18T10:59:49.765Z",
+  "browser": "153.0.8010.52",
+  "results": [
+    {
+      "name": "desktop-light",
+      "width": 1280,
+      "height": 720,
+      "dark": false,
+      "quality": "full",
+      "dom": {
+        "canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "left": 0
+        },
+        "body": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 720,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "left": 0
+        },
+        "display": "block"
+      },
+      "pixels": {
+        "occupied": 318892,
+        "chroma": 10151,
+        "fraction": 0.3460199652777778,
+        "bounds": {
+          "minX": 202,
+          "minY": 98,
+          "maxX": 1098,
+          "maxY": 702
+        },
+        "width": 1280,
+        "height": 720
+      },
+      "initial": {
+        "state": "ready",
+        "frames": 2,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "full",
+        "width": 1280,
+        "height": 720,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "during": {
+        "state": "ready",
+        "frames": 9,
+        "animating": true,
+        "active": true,
+        "status": "fault",
+        "quality": "full",
+        "width": 1280,
+        "height": 720,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "final": {
+        "state": "ready",
+        "frames": 10,
+        "animating": false,
+        "active": true,
+        "status": "fault",
+        "quality": "full",
+        "width": 1280,
+        "height": 720,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "reduced": {
+        "state": "ready",
+        "frames": 11,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "full",
+        "width": 1280,
+        "height": 720,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "requests": [
+        "http://127.0.0.1:4318/?dark=false&quality=full&reducedMotion=true",
+        "http://127.0.0.1:4318/styles.css",
+        "http://127.0.0.1:4318/core.js",
+        "http://127.0.0.1:4318/vendor/three.module.min.js"
+      ],
+      "errors": [],
+      "checks": [
+        "viewport-css-size",
+        "nonblank",
+        "framed",
+        "state-color",
+        "moving-pixels",
+        "idle-stopped",
+        "inactive-stopped",
+        "reduced-motion",
+        "offline-state-change",
+        "local-resources-only"
+      ]
+    },
+    {
+      "name": "phone-light",
+      "width": 390,
+      "height": 844,
+      "dark": false,
+      "quality": "balanced",
+      "dom": {
+        "canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "body": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "display": "block"
+      },
+      "pixels": {
+        "occupied": 50648,
+        "chroma": 1547,
+        "fraction": 0.15387045813586098,
+        "bounds": {
+          "minX": 21,
+          "minY": 318,
+          "maxX": 377,
+          "maxY": 558
+        },
+        "width": 390,
+        "height": 844
+      },
+      "initial": {
+        "state": "ready",
+        "frames": 2,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "balanced",
+        "width": 390,
+        "height": 844,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "during": {
+        "state": "ready",
+        "frames": 10,
+        "animating": true,
+        "active": true,
+        "status": "fault",
+        "quality": "balanced",
+        "width": 390,
+        "height": 844,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "final": {
+        "state": "ready",
+        "frames": 23,
+        "animating": false,
+        "active": true,
+        "status": "fault",
+        "quality": "balanced",
+        "width": 390,
+        "height": 844,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "reduced": {
+        "state": "ready",
+        "frames": 24,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "balanced",
+        "width": 390,
+        "height": 844,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "requests": [
+        "http://127.0.0.1:4318/?dark=false&quality=balanced&reducedMotion=true",
+        "http://127.0.0.1:4318/styles.css",
+        "http://127.0.0.1:4318/core.js",
+        "http://127.0.0.1:4318/vendor/three.module.min.js"
+      ],
+      "errors": [],
+      "checks": [
+        "viewport-css-size",
+        "nonblank",
+        "framed",
+        "state-color",
+        "moving-pixels",
+        "idle-stopped",
+        "inactive-stopped",
+        "reduced-motion",
+        "offline-state-change",
+        "local-resources-only"
+      ]
+    },
+    {
+      "name": "phone-scene-light",
+      "width": 412,
+      "height": 240,
+      "dark": false,
+      "quality": "balanced",
+      "dom": {
+        "canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 412,
+          "height": 240,
+          "top": 0,
+          "right": 412,
+          "bottom": 240,
+          "left": 0
+        },
+        "body": {
+          "x": 0,
+          "y": 0,
+          "width": 412,
+          "height": 240,
+          "top": 0,
+          "right": 412,
+          "bottom": 240,
+          "left": 0
+        },
+        "display": "block"
+      },
+      "pixels": {
+        "occupied": 35574,
+        "chroma": 1084,
+        "fraction": 0.35976941747572816,
+        "bounds": {
+          "minX": 60,
+          "minY": 33,
+          "maxX": 358,
+          "maxY": 233
+        },
+        "width": 412,
+        "height": 240
+      },
+      "initial": {
+        "state": "ready",
+        "frames": 2,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "balanced",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "during": {
+        "state": "ready",
+        "frames": 16,
+        "animating": true,
+        "active": true,
+        "status": "fault",
+        "quality": "balanced",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "final": {
+        "state": "ready",
+        "frames": 37,
+        "animating": false,
+        "active": true,
+        "status": "fault",
+        "quality": "balanced",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "reduced": {
+        "state": "ready",
+        "frames": 38,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "balanced",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "requests": [
+        "http://127.0.0.1:4318/?dark=false&quality=balanced&reducedMotion=true",
+        "http://127.0.0.1:4318/styles.css",
+        "http://127.0.0.1:4318/core.js",
+        "http://127.0.0.1:4318/vendor/three.module.min.js"
+      ],
+      "errors": [],
+      "checks": [
+        "viewport-css-size",
+        "nonblank",
+        "framed",
+        "state-color",
+        "moving-pixels",
+        "idle-stopped",
+        "inactive-stopped",
+        "reduced-motion",
+        "offline-state-change",
+        "local-resources-only"
+      ]
+    },
+    {
+      "name": "phone-scene-dark",
+      "width": 412,
+      "height": 240,
+      "dark": true,
+      "quality": "full",
+      "dom": {
+        "canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 412,
+          "height": 240,
+          "top": 0,
+          "right": 412,
+          "bottom": 240,
+          "left": 0
+        },
+        "body": {
+          "x": 0,
+          "y": 0,
+          "width": 412,
+          "height": 240,
+          "top": 0,
+          "right": 412,
+          "bottom": 240,
+          "left": 0
+        },
+        "display": "block"
+      },
+      "pixels": {
+        "occupied": 35656,
+        "chroma": 3408,
+        "fraction": 0.3605987055016181,
+        "bounds": {
+          "minX": 60,
+          "minY": 33,
+          "maxX": 358,
+          "maxY": 234
+        },
+        "width": 412,
+        "height": 240
+      },
+      "initial": {
+        "state": "ready",
+        "frames": 2,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "full",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "during": {
+        "state": "ready",
+        "frames": 11,
+        "animating": true,
+        "active": true,
+        "status": "fault",
+        "quality": "full",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "final": {
+        "state": "ready",
+        "frames": 29,
+        "animating": false,
+        "active": true,
+        "status": "fault",
+        "quality": "full",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "reduced": {
+        "state": "ready",
+        "frames": 30,
+        "animating": false,
+        "active": true,
+        "status": "running",
+        "quality": "full",
+        "width": 412,
+        "height": 240,
+        "triangles": 16094,
+        "frameProbe": null
+      },
+      "requests": [
+        "http://127.0.0.1:4318/?dark=true&quality=full&reducedMotion=true",
+        "http://127.0.0.1:4318/styles.css",
+        "http://127.0.0.1:4318/core.js",
+        "http://127.0.0.1:4318/vendor/three.module.min.js"
+      ],
+      "errors": [],
+      "checks": [
+        "viewport-css-size",
+        "nonblank",
+        "framed",
+        "state-color",
+        "moving-pixels",
+        "idle-stopped",
+        "inactive-stopped",
+        "reduced-motion",
+        "offline-state-change",
+        "local-resources-only"
+      ]
+    },
+    {
+      "contextLoss": "fault exposed; Android wrapper falls back after fixed-status health check"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+.workspace-navigation.floating-navigation {
+  --nav-vertical: 0;
+  --nav-motion-x: 0px;
+  --nav-motion-y: 0px;
+  position: absolute;
+  z-index: 30;
+  inset: auto auto max(16px, calc(env(safe-area-inset-bottom) + 12px)) 50%;
+  width: min(460px, calc(100% - 32px));
+  height: 70px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid rgba(var(--theme-ink-rgb), .19);
+  border-radius: 8px;
+  color: var(--theme-ink);
+  background: rgba(var(--theme-panel-rgb), .63);
+  -webkit-backdrop-filter: blur(22px) saturate(1.14);
+  backdrop-filter: blur(22px) saturate(1.14);
+  box-shadow: 0 8px 26px rgba(7, 15, 18, .15), inset 0 1px 0 rgba(255, 255, 255, .32);
+  transform: translate3d(calc(-50% + var(--nav-motion-x)), var(--nav-motion-y), 0);
+  isolation: isolate;
+  touch-action: manipulation;
+  letter-spacing: 0;
+}
+
+.workspace-navigation.floating-navigation[hidden] { display: none; }
+
+.floating-navigation .floating-navigation-plate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(var(--theme-ink-rgb), .11);
+  border-radius: 4px;
+  box-sizing: border-box;
+  background: rgba(var(--theme-ink-rgb), .075);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+
+.floating-navigation .floating-navigation-plate::before {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 2px;
+  top: 0;
+  left: calc(50% - 11px);
+  background: var(--theme-ink);
+  box-shadow: 2px 0 0 rgba(77, 155, 163, .75);
+}
+
+.workspace-navigation.floating-navigation button {
+  position: relative;
+  min-width: 48px;
+  min-height: 48px;
+  width: 100%;
+  height: 58px;
+  padding: 5px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+  transition: color 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.workspace-navigation.floating-navigation button::before { display: none; }
+.workspace-navigation.floating-navigation button i {
+  font-style: normal;
+  font-size: 10px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: .72;
+}
+.workspace-navigation.floating-navigation button span {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+.workspace-navigation.floating-navigation button[aria-current="true"] {
+  color: var(--theme-ink);
+  background: transparent;
+  font-weight: 700;
+}
+.workspace-navigation.floating-navigation button[aria-current="true"] i { opacity: 1; }
+.workspace-navigation.floating-navigation button:focus-visible {
+  outline: 2px solid var(--theme-ink);
+  outline-offset: -2px;
+}
+.workspace-navigation.floating-navigation button:active { color: var(--theme-ink); }
+
+@media (hover: hover) {
+  .workspace-navigation.floating-navigation button:hover { color: var(--theme-ink); }
+}
+
+@media (min-width: 900px), (min-width:700px) and (max-height:540px) {
+  .workspace-navigation.floating-navigation {
+    --nav-vertical: 1;
+    inset: 50% auto auto max(18px, calc(env(safe-area-inset-left) + 12px));
+    width: 90px;
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(5, 64px);
+    transform: translate3d(var(--nav-motion-x), calc(-50% + var(--nav-motion-y)), 0);
+  }
+  .workspace-navigation.floating-navigation button { height: 64px; }
+  .floating-navigation .floating-navigation-plate::before {
+    width: 2px;
+    height: 22px;
+    left: 0;
+    top: calc(50% - 11px);
+    box-shadow: 0 2px 0 rgba(77, 155, 163, .75);
+  }
+}
+
+@media (min-width:700px) and (max-height:540px) {
+  .workspace-navigation.floating-navigation { top:76px; bottom:16px; height:auto; transform:translate3d(var(--nav-motion-x),var(--nav-motion-y),0); grid-template-rows:repeat(5,minmax(48px,1fr)); }
+  .workspace-navigation.floating-navigation button { height:100%; }
+}
+.workspace-navigation.floating-navigation[data-reduced="true"] button { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .workspace-navigation.floating-navigation button { transition: none; }
+  .workspace-navigation.floating-navigation { --nav-motion-x: 0px !important; --nav-motion-y: 0px !important; }
+}

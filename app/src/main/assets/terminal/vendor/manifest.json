@@ -1,0 +1,22 @@
+{
+  "name": "three",
+  "version": "0.170.0",
+  "license": "MIT",
+  "copyright": "2010-2024 three.js authors",
+  "files": [
+    {
+      "path": "three.module.min.js",
+      "source": "https://unpkg.com/three@0.170.0/build/three.module.min.js",
+      "bytes": 691648,
+      "sha256": "08fd7545d13d2c7fb65ab691530a802dafefd638596501854f267d0fb13c39e7",
+      "modified": false
+    },
+    {
+      "path": "THREE-LICENSE.txt",
+      "source": "https://unpkg.com/three@0.170.0/LICENSE",
+      "bytes": 1081,
+      "sha256": "4c40a1ef62450b857c3b2aaf294936304cd552d965fbcd9d32d4c5bcf4ba4454",
+      "modified": false
+    }
+  ]
+}

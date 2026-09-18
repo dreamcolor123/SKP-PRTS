@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/skp_startup_mark">
+    <target android:name="sk_trace" android:animation="@animator/skp_startup_trace" />
+</animated-vector>

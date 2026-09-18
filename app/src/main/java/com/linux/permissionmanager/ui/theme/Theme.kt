@@ -2,8 +2,11 @@ package com.linux.permissionmanager.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.material3.ColorScheme
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -12,9 +15,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
+import com.linux.permissionmanager.R
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.linux.permissionmanager.data.AppearanceSettings
-import com.linux.permissionmanager.data.PaletteId
+import com.linux.permissionmanager.data.ThemeMode
 
 data class SemanticColors(
     val success: Color,
@@ -28,99 +38,153 @@ data class SemanticColors(
     val onInfoContainer: Color,
 )
 
-val LocalSemanticColors = staticCompositionLocalOf {
-    SemanticColors(
-        success = Color(0xFF2E7D32), onSuccess = Color.White,
-        successContainer = Color(0xFFD8F5D2), onSuccessContainer = Color(0xFF0D3B0F),
-        warning = Color(0xFF8A5A00), warningContainer = Color(0xFFFFE8B2),
-        onWarningContainer = Color(0xFF2A1800), infoContainer = Color(0xFFD9E2FF),
-        onInfoContainer = Color(0xFF001A41),
-    )
+object TerminalPalette {
+    val Signal = Color(0xFF9B7247)
+    val Ink = Color(0xFF080A08)
+    val Paper = Color(0xFFEAE5E1)
+    val Panel = Color(0xFFEDEBE4)
+    val Night = Color(0xFF11181B)
 }
 
+val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
+val LocalTerminalAppearance = staticCompositionLocalOf { AppearanceSettings() }
 val LocalChromeSurfaceAlpha = staticCompositionLocalOf { 1f }
 val LocalControlSurfaceAlpha = staticCompositionLocalOf { AppearanceTokens.defaultControlSurfaceAlpha }
 val LocalContentDrawsBehindNavigation = staticCompositionLocalOf { false }
 
 object AppearanceTokens {
-    // AppearanceBackground already paints the solid fallback. Page scaffolds
-    // stay fully transparent so a selected image receives no second white
-    // layer; cards and chrome provide their own adjustable readability layer.
+    // The background owns the image/fallback; page surfaces must not paint it twice.
     const val pageSurfaceAlpha = 0f
     const val defaultControlSurfaceAlpha = 0.76f
     const val dialogSurfaceAlpha = 0.98f
 }
 
-private val LightBackground = Color.White
-private val LightSurfaceLow = Color(0xFFFAFAFA)
-private val LightSurface = Color.White
-private val LightSurfaceHigh = Color(0xFFFFFFFF)
-private val LightSurfaceHighest = Color(0xFFF0F0F0)
-private val LightSurfaceVariant = Color(0xFFE6E6E6)
-
-private fun baseLight(
-    primary: Color,
-    onPrimary: Color,
-    primaryContainer: Color,
-    onPrimaryContainer: Color,
-    secondary: Color,
-    secondaryContainer: Color,
-    onSecondaryContainer: Color,
-    tertiary: Color,
-): ColorScheme = lightColorScheme(
-    primary = primary,
-    onPrimary = onPrimary,
-    primaryContainer = primaryContainer,
-    onPrimaryContainer = onPrimaryContainer,
-    secondary = secondary,
-    secondaryContainer = secondaryContainer,
-    onSecondaryContainer = onSecondaryContainer,
-    tertiary = tertiary,
-    background = LightBackground,
-    surface = LightBackground,
-    surfaceVariant = LightSurfaceVariant,
-    surfaceContainer = LightSurface,
-    surfaceContainerLow = LightSurfaceLow,
-    surfaceContainerHigh = LightSurfaceHigh,
-    surfaceContainerHighest = LightSurfaceHighest,
-    onSurface = Color(0xFF1D1B20),
-    onSurfaceVariant = Color(0xFF49454F),
-    outline = Color(0xFF79747E),
-    outlineVariant = Color(0xFFCAC4D0),
-    error = Color(0xFFBA1A1A),
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
+private val TerminalLight = lightColorScheme(
+    primary = TerminalPalette.Ink,
+    onPrimary = Color.White,
+    primaryContainer = TerminalPalette.Signal,
+    onPrimaryContainer = TerminalPalette.Ink,
+    secondary = Color(0xFF77756D),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE7E3D9),
+    onSecondaryContainer = TerminalPalette.Ink,
+    tertiary = Color(0xFF16705B),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFD9EFE6),
+    onTertiaryContainer = Color(0xFF164D3D),
+    background = TerminalPalette.Paper,
+    onBackground = TerminalPalette.Ink,
+    surface = TerminalPalette.Paper,
+    onSurface = TerminalPalette.Ink,
+    surfaceVariant = Color(0xFFE7E3D9),
+    onSurfaceVariant = Color(0xFF77756D),
+    surfaceContainerLowest = Color(0xFFF6F2EF),
+    surfaceContainerLow = Color(0xFFEEEAE6),
+    surfaceContainer = Color(0xFFEDEBE4),
+    surfaceContainerHigh = Color(0xFFE7E3D9),
+    surfaceContainerHighest = Color(0xFFDEDACF),
+    surfaceTint = Color.Transparent,
+    outline = Color(0xFF77756D),
+    outlineVariant = Color(0xFFAAA59A),
+    inverseSurface = TerminalPalette.Ink,
+    inverseOnSurface = TerminalPalette.Paper,
+    inversePrimary = TerminalPalette.Signal,
+    error = Color(0xFFB83240),
+    onError = Color.White,
+    errorContainer = Color(0xFFFBE0E2),
+    onErrorContainer = Color(0xFF792330),
 )
 
-private fun paletteScheme(palette: PaletteId): ColorScheme = when (palette) {
-    PaletteId.INDIGO -> baseLight(
-        Color(0xFF6750A4), Color.White, Color(0xFFEADDFF), Color(0xFF21005D),
-        Color(0xFF625B71), Color(0xFFE8DEF8), Color(0xFF1D192B), Color(0xFF7D5260),
-    )
-    PaletteId.SEA_SALT -> baseLight(
-        Color(0xFF006874), Color.White, Color(0xFF97F0FF), Color(0xFF001F24),
-        Color(0xFF4A6366), Color(0xFFCDE7EA), Color(0xFF051F22), Color(0xFF4F5F7D),
-    )
-    PaletteId.FOREST -> baseLight(
-        Color(0xFF386A20), Color.White, Color(0xFFB9F397), Color(0xFF0B2002),
-        Color(0xFF55624C), Color(0xFFD9E8CC), Color(0xFF131F0F), Color(0xFF3F665D),
-    )
-    PaletteId.CORAL -> baseLight(
-        Color(0xFF984061), Color.White, Color(0xFFFFD9E2), Color(0xFF3F001D),
-        Color(0xFF765660), Color(0xFFFFD9E2), Color(0xFF2D151F), Color(0xFF80543B),
-    )
-    PaletteId.SLATE -> baseLight(
-        Color(0xFF485D92), Color.White, Color(0xFFD9E2FF), Color(0xFF001A41),
-        Color(0xFF5A5F71), Color(0xFFDEE2F2), Color(0xFF171B2B), Color(0xFF76546F),
-    )
-}
+private val TerminalDark = darkColorScheme(
+    primary = Color(0xFFE0E3DC),
+    onPrimary = TerminalPalette.Night,
+    primaryContainer = Color(0xFF514719),
+    onPrimaryContainer = Color(0xFFFFE58B),
+    secondary = Color(0xFFA6B0B1),
+    onSecondary = TerminalPalette.Ink,
+    secondaryContainer = Color(0xFF2A363B),
+    onSecondaryContainer = Color(0xFFE0E3DC),
+    tertiary = Color(0xFF69C9A7),
+    onTertiary = Color(0xFF0B3023),
+    tertiaryContainer = Color(0xFF1D4436),
+    onTertiaryContainer = Color(0xFFC1ECD9),
+    background = TerminalPalette.Night,
+    onBackground = Color(0xFFE0E3DC),
+    surface = TerminalPalette.Night,
+    onSurface = Color(0xFFE0E3DC),
+    surfaceVariant = Color(0xFF2A363B),
+    onSurfaceVariant = Color(0xFFA6B0B1),
+    surfaceContainerLowest = Color(0xFF0B1114),
+    surfaceContainerLow = Color(0xFF172126),
+    surfaceContainer = Color(0xFF202A2F),
+    surfaceContainerHigh = Color(0xFF253137),
+    surfaceContainerHighest = Color(0xFF2A363B),
+    surfaceTint = Color.Transparent,
+    outline = Color(0xFFA6B0B1),
+    outlineVariant = Color(0xFF536166),
+    inverseSurface = TerminalPalette.Paper,
+    inverseOnSurface = TerminalPalette.Ink,
+    inversePrimary = TerminalPalette.Ink,
+    error = Color(0xFFFF8791),
+    onError = Color(0xFF561520),
+    errorContainer = Color(0xFF50212A),
+    onErrorContainer = Color(0xFFFFDADF),
+)
 
 private val LightSemanticColors = SemanticColors(
-    success = Color(0xFF2E7D32), onSuccess = Color.White,
-    successContainer = Color(0xFFD8F5D2), onSuccessContainer = Color(0xFF0D3B0F),
-    warning = Color(0xFF8A5A00), warningContainer = Color(0xFFFFE8B2),
-    onWarningContainer = Color(0xFF2A1800), infoContainer = Color(0xFFD9E2FF),
-    onInfoContainer = Color(0xFF001A41),
+    success = Color(0xFF16705B), onSuccess = Color.White,
+    successContainer = Color(0xFFD9EFE6), onSuccessContainer = Color(0xFF164D3D),
+    warning = Color(0xFF756012), warningContainer = Color(0xFFF6E8A7),
+    onWarningContainer = Color(0xFF51430D), infoContainer = Color(0xFFE0EAE7),
+    onInfoContainer = Color(0xFF284B43),
+)
+
+private val DarkSemanticColors = SemanticColors(
+    success = Color(0xFF69C9A7), onSuccess = Color(0xFF0B3023),
+    successContainer = Color(0xFF1D4436), onSuccessContainer = Color(0xFFC1ECD9),
+    warning = Color(0xFF9B7247), warningContainer = Color(0xFF514719),
+    onWarningContainer = Color(0xFFFFE58B), infoContainer = Color(0xFF273E36),
+    onInfoContainer = Color(0xFFCAE7DB),
+)
+
+private val RhineNativeFont = FontFamily(
+    Font(R.font.skp_misans_regular, FontWeight.Normal),
+    Font(R.font.skp_misans_demibold, FontWeight.SemiBold),
+    Font(R.font.skp_misans_bold, FontWeight.Bold),
+)
+
+private fun terminalText(size: Int, height: Int, weight: FontWeight = FontWeight.Normal) = TextStyle(
+    fontFamily = RhineNativeFont,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = height.sp,
+    letterSpacing = 0.sp,
+)
+
+private val TerminalTypography = Typography(
+    displayLarge = terminalText(44, 50, FontWeight.Bold),
+    displayMedium = terminalText(36, 42, FontWeight.Bold),
+    displaySmall = terminalText(32, 38, FontWeight.Bold),
+    headlineLarge = terminalText(30, 36, FontWeight.Bold),
+    headlineMedium = terminalText(27, 34, FontWeight.Bold),
+    headlineSmall = terminalText(24, 30, FontWeight.Bold),
+    titleLarge = terminalText(22, 28, FontWeight.SemiBold),
+    titleMedium = terminalText(17, 24, FontWeight.SemiBold),
+    titleSmall = terminalText(14, 20, FontWeight.SemiBold),
+    bodyLarge = terminalText(16, 24),
+    bodyMedium = terminalText(14, 21),
+    bodySmall = terminalText(12, 18),
+    labelLarge = terminalText(14, 20, FontWeight.SemiBold),
+    labelMedium = terminalText(12, 18, FontWeight.Medium),
+    labelSmall = terminalText(11, 16, FontWeight.Medium),
+)
+
+private val TerminalShapes = Shapes(
+    extraSmall = RoundedCornerShape(0.dp),
+    small = RoundedCornerShape(0.dp),
+    medium = RoundedCornerShape(0.dp),
+    large = RoundedCornerShape(0.dp),
+    extraLarge = RoundedCornerShape(0.dp),
 )
 
 @Composable
@@ -129,13 +193,17 @@ fun SkpTheme(
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val scheme = paletteScheme(appearance.palette)
+    val dark = when (appearance.themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(dark) {
         val window = (context as? Activity)?.window ?: return@LaunchedEffect
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = true
-            isAppearanceLightNavigationBars = true
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -143,10 +211,16 @@ fun SkpTheme(
     }
 
     CompositionLocalProvider(
-        LocalSemanticColors provides LightSemanticColors,
+        LocalTerminalAppearance provides appearance,
+        LocalSemanticColors provides if (dark) DarkSemanticColors else LightSemanticColors,
         LocalChromeSurfaceAlpha provides appearance.chromeSurfaceAlpha,
         LocalControlSurfaceAlpha provides appearance.controlSurfaceAlpha,
     ) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(
+            colorScheme = if (dark) TerminalDark else TerminalLight,
+            typography = TerminalTypography,
+            shapes = TerminalShapes,
+            content = content,
+        )
     }
 }

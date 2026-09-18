@@ -5,9 +5,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
@@ -15,10 +18,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.linux.permissionmanager.data.EnvironmentInfo
 import com.linux.permissionmanager.data.EnvironmentState
 import com.linux.permissionmanager.data.SystemStatus
+import com.linux.permissionmanager.data.AppearanceSettings
+import com.linux.permissionmanager.data.SuGrant
 import com.linux.permissionmanager.ui.screens.HomeScreen
 import com.linux.permissionmanager.ui.screens.ModuleScreen
 import com.linux.permissionmanager.ui.screens.RootConfigDialog
 import com.linux.permissionmanager.ui.screens.SuperUserScreen
+import com.linux.permissionmanager.ui.screens.LogScreen
+import com.linux.permissionmanager.ui.screens.LocalCustomizerDialog
 import com.linux.permissionmanager.ui.theme.SkpTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,7 +42,7 @@ class ComposeScreensTest {
     @Test
     fun homeShowsEnvironmentStatusAndConsole() {
         compose.setContent {
-            SkpTheme {
+            SkpTheme(appearance = AppearanceSettings(motionEnabled = false, sceneEnabled = false)) {
                 HomeScreen(
                     state = HomeUiState(
                         loading = false,
@@ -57,6 +64,7 @@ class ComposeScreensTest {
                     onCopyConsole = {},
                     onClearConsole = {},
                     onReboot = { _, _ -> },
+                    onDismissCveSoftRebootPrompt = {},
                 )
             }
         }
@@ -97,7 +105,7 @@ class ComposeScreensTest {
 
     @Test
     fun authorizationEmptyStateCanOpenAppPicker() {
-        var pickerVisible = false
+        var pickerVisible by mutableStateOf(false)
         compose.setContent {
             SkpTheme {
                 SuperUserScreen(
@@ -121,6 +129,7 @@ class ComposeScreensTest {
         compose.onNodeWithText("暂无 SU 授权").assertExists()
         compose.onNodeWithContentDescription("添加").performClick()
         compose.onNodeWithText("添加 SU 授权").performClick()
+        compose.onNodeWithText("选择应用").assertExists()
         compose.runOnIdle { assertTrue(pickerVisible) }
     }
 
@@ -145,6 +154,7 @@ class ComposeScreensTest {
                     onRemove = {},
                     onDetails = {},
                     onWebUi = {},
+                    onCreateWebUiShortcut = {},
                     onCheckUpdate = {},
                     onChangelog = {},
                     onDownloadUpdate = {},
@@ -162,5 +172,111 @@ class ComposeScreensTest {
             assertEquals(1, selectedTab)
             assertFalse(selectedTab == 0)
         }
+    }
+
+    @Test
+    fun rootBusyStateDisablesKeyModeAndConfirmation() {
+        compose.setContent {
+            SkpTheme {
+                RootConfigDialog(
+                    state = RootConfigUiState(visible = true, busy = true),
+                    onDismiss = {},
+                    onRootKeyChange = {},
+                    onModeChange = {},
+                    onImport = {},
+                    onExport = {},
+                    onConfirm = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Root Key").assertIsNotEnabled()
+        compose.onNodeWithText("Boot").assertIsNotEnabled()
+        compose.onNodeWithText("热启动").assertIsNotEnabled()
+        compose.onNodeWithText("确定").assertIsNotEnabled()
+        compose.onNodeWithText("取消").assertIsNotEnabled()
+    }
+
+    @Test
+    fun authorizationRemovalRequiresConfirmationAndFiresOnce() {
+        val grant = SuGrant(packageName = "com.example.fixture", label = "测试应用", icon = null)
+        var removals = 0
+        compose.setContent {
+            SkpTheme {
+                SuperUserScreen(
+                    state = SuperUserUiState(loading = false, grants = listOf(grant)),
+                    bottomPadding = PaddingValues(0.dp),
+                    onRefresh = {},
+                    onSearch = {},
+                    onShowPicker = {},
+                    onHidePicker = {},
+                    onPickerSearch = {},
+                    onFilterSystem = {},
+                    onFilterThirdParty = {},
+                    onAdd = {},
+                    onAddAdb = {},
+                    onRemove = { assertEquals(grant, it); removals++ },
+                    onClear = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("移除").performClick()
+        compose.onNodeWithText("移除授权？").assertExists()
+        compose.runOnIdle { assertEquals(0, removals) }
+        compose.onNodeWithText("移除").performClick()
+        compose.onNodeWithText("移除授权？").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, removals) }
+    }
+
+    @Test
+    fun reducedMotionLogPreservesRawTextAndEveryCommand() {
+        var raw by mutableStateOf("line 01\n中文原始记录 / 0x4A\n\tlast line\n")
+        var copies = 0
+        var exports = 0
+        var backs = 0
+        compose.setContent {
+            SkpTheme(appearance = AppearanceSettings(motionEnabled = false, sceneEnabled = false)) {
+                LogScreen(
+                    title = "测试日志",
+                    content = raw,
+                    onBack = { backs++ },
+                    onCopy = { copies++ },
+                    onExport = { exports++ },
+                )
+            }
+        }
+        compose.onNodeWithTag("log-content").assertTextEquals(raw)
+        compose.onNodeWithContentDescription("复制").performClick()
+        compose.onNodeWithContentDescription("导出").performClick()
+        compose.onNodeWithContentDescription("返回").performClick()
+        compose.runOnIdle {
+            assertEquals(1, copies)
+            assertEquals(1, exports)
+            assertEquals(1, backs)
+            raw = " \t\n"
+        }
+        compose.onNodeWithTag("log-content").assertTextEquals(" \t\n")
+    }
+
+    @Test
+    fun localCustomizerBusyStateDisablesBuildAndExport() {
+        compose.setContent {
+            SkpTheme {
+                LocalCustomizerDialog(
+                    state = LocalCustomizerUiState(visible = true, building = true),
+                    onDismiss = {},
+                    onPackageNameChange = {},
+                    onManagerNameChange = {},
+                    onPickIcon = {},
+                    onUseDefaultIcon = {},
+                    onBuildAndInstall = {},
+                    onExport = {},
+                )
+            }
+        }
+        compose.onNodeWithText("仅导出 APK").assertIsNotEnabled()
+        compose.onNodeWithText("构建并安装").assertIsNotEnabled()
+        compose.onNodeWithText("包名").assertIsNotEnabled()
+        compose.onNodeWithText("管理器名称").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("取消构建").assertExists()
     }
 }

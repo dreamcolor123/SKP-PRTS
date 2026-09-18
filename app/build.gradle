@@ -178,6 +178,34 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 }
 
+// The UI is built from the pinned local source tree; the APK never fetches its UI.
+// Override -PRHINE_NODE and -PRHINE_NPM when Node/npm are not on PATH.
+def rhineSource = rootProject.file('ui/rhine')
+def rhineNode = providers.gradleProperty('RHINE_NODE').orElse('node')
+def rhineNpm = providers.gradleProperty('RHINE_NPM').orElse(org.gradle.internal.os.OperatingSystem.current().isWindows() ? 'npm.cmd' : 'npm')
+def rhineOutput = layout.buildDirectory.dir('generated/rhineAssets')
+tasks.register('installRhineDependencies', Exec) {
+    workingDir rhineSource
+    inputs.files(new File(rhineSource, 'package.json'), new File(rhineSource, 'package-lock.json'))
+    outputs.file(new File(rhineSource, 'node_modules/.package-lock.json'))
+    commandLine rhineNpm.get(), 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+}
+tasks.register('buildRhineFrontend', Exec) {
+    dependsOn 'installRhineDependencies'
+    workingDir rhineSource
+    inputs.files(fileTree(rhineSource) { exclude 'node_modules/**', 'dist/**', '.git/**' })
+    outputs.dir(new File(rhineSource, 'dist'))
+    commandLine rhineNpm.get(), 'run', 'build:android'
+    environment 'PATH', new File(rhineNode.get()).parent == null ? System.getenv('PATH') : new File(rhineNode.get()).parent + File.pathSeparator + System.getenv('PATH')
+}
+tasks.register('packageRhineFrontend', Sync) {
+    dependsOn 'buildRhineFrontend'
+    from(new File(rhineSource, 'dist')) { into 'rhine' }
+    into rhineOutput
+}
+android.sourceSets.main.assets.srcDir(rhineOutput)
+tasks.named('preBuild').configure { dependsOn 'packageRhineFrontend' }
+
 def upstreamNativeBinaries = [
         'libresetprop.so'               : '70558e6d6199fa5a961b7bafeb8f96d8157cc63810db8df2a3cded1881763697',
         'libcve2026_43499_ghostlock.so' : '7b2d158fad8af96082b3954d1ecb65e91e7a62d8cd475ba067698a0dfcd20778',

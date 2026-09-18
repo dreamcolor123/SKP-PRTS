@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,16 +17,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.AddToHomeScreen
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import com.linux.permissionmanager.ui.rhine.RhineIcons
+import com.linux.permissionmanager.ui.rhine.RhineButton as Button
+import com.linux.permissionmanager.ui.rhine.RhineOutlinedButton as OutlinedButton
+import com.linux.permissionmanager.ui.rhine.RhineTonalButton as FilledTonalButton
+import com.linux.permissionmanager.ui.rhine.RhineTextButton as TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -35,6 +41,8 @@ import com.linux.permissionmanager.data.MarketModule
 import com.linux.permissionmanager.data.ModuleRunState
 import com.linux.permissionmanager.ui.ModuleUiState
 import com.linux.permissionmanager.ui.components.*
+import com.linux.permissionmanager.ui.motion.RedactionReveal
+import com.linux.permissionmanager.ui.motion.RollingText
 import com.linux.permissionmanager.ui.theme.LocalSemanticColors
 import com.linux.permissionmanager.ui.theme.AppearanceTokens
 import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
@@ -79,56 +87,48 @@ fun ModuleScreen(
     Scaffold(
         topBar = {
             Column {
-                LargeTopAppBar(
-                    title = {
-                        Column {
-                            Text("模块")
-                            Text("管理已安装模块并浏览模块市场", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    },
+                TerminalTopBar(
+                    title = "模块",
+                    code = "03 / MODULE ARCHIVE",
                     actions = {
                         IconButton(onClick = { if (state.selectedTab == 0) onRefreshInstalled() else onRefreshMarket() }) {
-                            Icon(Icons.Outlined.Refresh, "刷新")
+                            Icon(RhineIcons.Refresh, "刷新")
                         }
                         Box {
-                            IconButton(onClick = { topMenu = true }) { Icon(Icons.Outlined.Add, "安装模块") }
+                            IconButton(onClick = { topMenu = true }) { Icon(RhineIcons.Add, "安装模块") }
                             DropdownMenu(expanded = topMenu, onDismissRequest = { topMenu = false }) {
                                 DropdownMenuItem(
                                     text = { Text("从 ZIP 安装") },
-                                    leadingIcon = { Icon(Icons.Outlined.FolderZip, null, Modifier.size(ModuleMenuIconSize)) },
+                                    leadingIcon = { Icon(RhineIcons.FolderZip, null, Modifier.size(ModuleMenuIconSize)) },
                                     onClick = { topMenu = false; onPickModule(false) },
                                 )
                                 DropdownMenuItem(
                                     text = { Text("单次试运行") },
-                                    leadingIcon = { Icon(Icons.Outlined.Science, null, Modifier.size(ModuleMenuIconSize)) },
+                                    leadingIcon = { Icon(RhineIcons.Science, null, Modifier.size(ModuleMenuIconSize)) },
                                     onClick = { topMenu = false; onPickModule(true) },
                                 )
                                 DropdownMenuItem(
                                     text = { Text("模块开发指南") },
-                                    leadingIcon = { Icon(Icons.Outlined.MenuBook, null, Modifier.size(ModuleMenuIconSize)) },
+                                    leadingIcon = { Icon(RhineIcons.MenuBook, null, Modifier.size(ModuleMenuIconSize)) },
                                     onClick = { topMenu = false; onOpenGuide() },
                                 )
                             }
                         }
                     },
                     scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                    ),
                 )
                 PrimaryTabRow(selectedTabIndex = state.selectedTab, containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current)) {
                     Tab(
                         selected = state.selectedTab == 0,
                         onClick = { onSelectTab(0) },
                         text = { Text("已安装") },
-                        icon = { Icon(Icons.Outlined.Extension, null, Modifier.size(ModuleTabIconSize)) },
+                        icon = { Icon(RhineIcons.Extension, null, Modifier.size(ModuleTabIconSize)) },
                     )
                     Tab(
                         selected = state.selectedTab == 1,
                         onClick = { onSelectTab(1) },
                         text = { Text("模块市场") },
-                        icon = { Icon(Icons.Outlined.Storefront, null, Modifier.size(ModuleTabIconSize)) },
+                        icon = { Icon(RhineIcons.Storefront, null, Modifier.size(ModuleTabIconSize)) },
                     )
                 }
             }
@@ -152,7 +152,7 @@ fun ModuleScreen(
     pendingDelete?.let { module ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            icon = { Icon(Icons.Outlined.DeleteForever, null) },
+            icon = { Icon(RhineIcons.DeleteForever, null) },
             title = { Text("删除模块？") },
             text = { Text("确定删除 ${module.name} 吗？重启后生效。") },
             confirmButton = {
@@ -168,7 +168,7 @@ fun ModuleScreen(
         val update = module.update
         AlertDialog(
             onDismissRequest = { pendingUpdate = null },
-            icon = { Icon(Icons.Outlined.SystemUpdate, null) },
+            icon = { Icon(RhineIcons.SystemUpdate, null) },
             title = { Text("更新 ${module.name}？") },
             text = { Text("检测到新版本 ${update?.latestVersion.orEmpty()}，是否下载并安装？") },
             confirmButton = { Button(onClick = { pendingUpdate = null; onDownloadUpdate(module) }) { Text("立即更新") } },
@@ -178,7 +178,7 @@ fun ModuleScreen(
     pendingMarket?.let { module ->
         AlertDialog(
             onDismissRequest = { pendingMarket = null },
-            icon = { Icon(Icons.Outlined.Download, null) },
+            icon = { Icon(RhineIcons.Download, null) },
             title = { Text("安装 ${module.displayName}？") },
             text = { Text(module.chineseAlert.ifBlank { "将下载模块 ZIP 并自动安装。" }) },
             confirmButton = { Button(onClick = { pendingMarket = null; onDownloadMarket(module) }) { Text("下载并安装") } },
@@ -211,7 +211,7 @@ fun ModuleScreen(
 }
 
 @Composable
-private fun WebUiShortcutDialog(
+fun WebUiShortcutDialog(
     module: InstalledModule,
     onDismiss: () -> Unit,
     onConfirm: (String, Uri?) -> Unit,
@@ -225,7 +225,7 @@ private fun WebUiShortcutDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, null) },
+        icon = { Icon(RhineIcons.AddToHomeScreen, null) },
         title = { Text("创建 WebUI 桌面快捷方式") },
         text = {
             Column(
@@ -240,16 +240,13 @@ private fun WebUiShortcutDialog(
                     singleLine = true,
                     supportingText = { Text("最多 25 个字符") },
                 )
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                ) {
+                HorizontalDivider()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        ShortcutIconPreview(iconUri, Modifier.size(58.dp))
+                        ShortcutIconPreview(iconUri, Modifier.size(48.dp))
                         Column(Modifier.weight(1f)) {
                             Text("桌面图标", style = MaterialTheme.typography.titleSmall)
                             Text(
@@ -262,7 +259,6 @@ private fun WebUiShortcutDialog(
                             Text(if (iconUri == null) "选择" else "更换")
                         }
                     }
-                }
                 if (iconUri != null) {
                     TextButton(
                         onClick = { iconUri = null },
@@ -279,7 +275,7 @@ private fun WebUiShortcutDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Icon(Icons.Outlined.Visibility, null, Modifier.size(20.dp))
+                        Icon(RhineIcons.Visibility, null, Modifier.size(20.dp))
                         Text(
                             "快捷方式会在桌面和启动器记录中留下名称、图标及所属应用，可能降低管理器的隐藏性。",
                             style = MaterialTheme.typography.bodySmall,
@@ -329,17 +325,17 @@ private fun ShortcutIconPreview(uri: Uri?, modifier: Modifier = Modifier) {
     if (bitmap == null) {
         Box(
             modifier = modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.Image, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            Icon(RhineIcons.Image, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
         }
     } else {
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = if (uri == null) "默认快捷方式图标" else "自定义快捷方式图标",
-            modifier = modifier.clip(RoundedCornerShape(16.dp)),
+            modifier = modifier.clip(RoundedCornerShape(6.dp)),
             contentScale = ContentScale.Crop,
         )
     }
@@ -379,10 +375,13 @@ private fun InstalledModules(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            ModuleArchiveSummary("LOCAL / 已安装", state.installed.size)
+        }
         if (state.installedLoading) item { LoadingState("正在读取已安装模块…") }
         state.installedError?.let { item { ErrorState(it, onRetry) } }
-        if (!state.installedLoading && state.installed.isEmpty()) item {
-            EmptyState("暂无已安装模块", "点击右上角从 ZIP 安装模块", icon = Icons.Outlined.ExtensionOff)
+        if (!state.installedLoading && state.installedError == null && state.installed.isEmpty()) item {
+            EmptyState("暂无已安装模块", "本地模块档案为空", icon = RhineIcons.ExtensionOff)
         }
         items(state.installed, key = { it.id }) { module ->
             InstalledModuleCard(module, onDelete, onDetails, onWebUi, onCreateWebUiShortcut, onCheckUpdate, onChangelog, onUpdate)
@@ -390,6 +389,7 @@ private fun InstalledModules(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InstalledModuleCard(
     module: InstalledModule,
@@ -409,43 +409,54 @@ private fun InstalledModuleCard(
         ModuleRunState.REMOVED_PENDING_REBOOT -> Triple("待重启", semantic.infoContainer, semantic.onInfoContainer)
         ModuleRunState.NOT_RUNNING -> Triple("未启动", semantic.warningContainer, semantic.onWarningContainer)
     }
-    TonalCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(module.name.ifBlank { module.id }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text("版本 ${module.version}  ·  ${module.author}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                StatusTag(label, color, onColor)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ModuleRecordHeader(module.name.ifBlank { module.id }, module.id, module.version, module.author) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = onColor, modifier = Modifier.background(color).padding(horizontal = 8.dp, vertical = 4.dp))
             }
             if (module.description.isNotBlank()) {
-                Text(module.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                RedactionReveal(
+                    text = module.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            HorizontalDivider()
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
                 if (module.hasWebUi) {
                     TextButton(onClick = { onWebUi(module) }) {
-                        Icon(Icons.Outlined.Language, null, Modifier.size(ModuleActionIconSize))
+                        Icon(RhineIcons.Language, null, Modifier.size(ModuleActionIconSize))
                         Spacer(Modifier.width(6.dp))
                         Text("WebUI")
                     }
                 }
-                Spacer(Modifier.weight(1f))
-                if (module.update?.hasNewVersion == true) FilledTonalButton(onClick = { onUpdate(module) }) { Text("有新版") }
+                if (module.update?.hasNewVersion == true) FilledTonalButton(onClick = { onUpdate(module) }) {
+                    Icon(RhineIcons.SystemUpdate, null, Modifier.size(ModuleActionIconSize))
+                    Spacer(Modifier.width(6.dp))
+                    Text("有新版")
+                }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "更多") }
+                    IconButton(onClick = { menu = true }) { Icon(RhineIcons.MoreVert, "更多") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("详情") }, leadingIcon = { Icon(Icons.Outlined.Info, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onDetails(module) })
+                        DropdownMenuItem(text = { Text("详情") }, leadingIcon = { Icon(RhineIcons.Info, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onDetails(module) })
                         if (module.hasWebUi) {
                             DropdownMenuItem(
                                 text = { Text("创建 WebUI 桌面快捷方式") },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, null, Modifier.size(ModuleMenuIconSize)) },
+                                leadingIcon = { Icon(RhineIcons.AddToHomeScreen, null, Modifier.size(ModuleMenuIconSize)) },
                                 onClick = { menu = false; onCreateWebUiShortcut(module) },
                             )
                         }
-                        DropdownMenuItem(text = { Text("检查更新") }, leadingIcon = { Icon(Icons.Outlined.Update, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onCheckUpdate(module) })
-                        if (!module.update?.changelogUrl.isNullOrBlank()) DropdownMenuItem(text = { Text("更新日志") }, leadingIcon = { Icon(Icons.Outlined.Article, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onChangelog(module) })
+                        DropdownMenuItem(text = { Text("检查更新") }, leadingIcon = { Icon(RhineIcons.Update, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onCheckUpdate(module) })
+                        if (!module.update?.changelogUrl.isNullOrBlank()) DropdownMenuItem(text = { Text("更新日志") }, leadingIcon = { Icon(RhineIcons.Article, null, Modifier.size(ModuleMenuIconSize)) }, onClick = { menu = false; onChangelog(module) })
                         HorizontalDivider()
-                        DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Outlined.Delete, null, Modifier.size(ModuleMenuIconSize), tint = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete(module) })
+                        DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(RhineIcons.Delete, null, Modifier.size(ModuleMenuIconSize), tint = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete(module) })
                     }
                 }
             }
@@ -453,7 +464,7 @@ private fun InstalledModuleCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun MarketModules(
     state: ModuleUiState,
@@ -483,42 +494,54 @@ private fun MarketModules(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item { ModuleArchiveSummary("REMOTE / 模块市场", state.filteredMarket.size) }
         item {
             OutlinedTextField(
                 value = state.marketQuery,
                 onValueChange = onQuery,
                 modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                trailingIcon = if (state.marketQuery.isNotBlank()) {{ IconButton(onClick = { onQuery("") }) { Icon(Icons.Outlined.Close, "清除") } }} else null,
+                leadingIcon = { Icon(RhineIcons.Search, null) },
+                trailingIcon = if (state.marketQuery.isNotBlank()) {{ IconButton(onClick = { onQuery("") }) { Icon(RhineIcons.Close, "清除") } }} else null,
                 placeholder = { Text("搜索模块、作者或关键词") },
                 singleLine = true,
-                shape = MaterialTheme.shapes.extraLarge,
+                shape = MaterialTheme.shapes.small,
             )
         }
         if (state.marketLoading) item { LoadingState("正在加载模块市场…") }
         state.marketError?.let { item { ErrorState(it, onRetry) } }
-        if (!state.marketLoading && state.filteredMarket.isEmpty()) item { EmptyState("没有匹配的模块", "尝试更换搜索关键词", icon = Icons.Outlined.SearchOff) }
+        if (!state.marketLoading && state.marketError == null && state.filteredMarket.isEmpty()) item { EmptyState("没有匹配的模块", "当前模块档案为空", icon = RhineIcons.SearchOff) }
         items(state.filteredMarket, key = { it.id }) { module ->
-            TonalCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Column(Modifier.weight(1f)) {
-                            Text(module.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                            Text("版本 ${module.version}  ·  ${module.author}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (module.updateDate.isNotBlank()) StatusTag(module.updateDate, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ModuleRecordHeader(module.displayName, module.id, module.version, module.author) {
+                        if (module.updateDate.isNotBlank()) Text(module.updateDate, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(module.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                    Row(
+                    RedactionReveal(
+                        text = module.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    HorizontalDivider()
+                    FlowRow(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     ) {
-                        if (module.sourceUrl.isNotBlank()) TextButton(onClick = { onOpenUrl(module.sourceUrl) }) { Text("源代码") }
-                        Spacer(Modifier.weight(1f))
+                        if (module.sourceUrl.isNotBlank()) TextButton(onClick = { onOpenUrl(module.sourceUrl) }) {
+                            Icon(RhineIcons.Code, null, Modifier.size(ModuleActionIconSize))
+                            Spacer(Modifier.width(6.dp))
+                            Text("源代码")
+                        }
                         if (module.isInstalled) {
                             StatusTag("已安装", LocalSemanticColors.current.successContainer, LocalSemanticColors.current.onSuccessContainer)
                         } else Button(onClick = { onDownload(module) }) {
-                            Icon(Icons.Outlined.Download, null, Modifier.size(ModuleActionIconSize))
+                            Icon(RhineIcons.Download, null, Modifier.size(ModuleActionIconSize))
                             Spacer(Modifier.width(6.dp))
                             Text("安装")
                         }
@@ -530,10 +553,39 @@ private fun MarketModules(
 }
 
 @Composable
-private fun DownloadProgressDialog(progress: DownloadProgress, onCancel: () -> Unit) {
+private fun ModuleArchiveSummary(label: String, count: Int) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+        RollingText(count.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace))
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun ModuleRecordHeader(
+    name: String,
+    id: String,
+    version: String,
+    author: String,
+    status: @Composable () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(id, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        status()
+    }
+    Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+    Text("$version / $author", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+fun DownloadProgressDialog(progress: DownloadProgress, onCancel: () -> Unit) {
     AlertDialog(
         onDismissRequest = {},
-        icon = { Icon(Icons.Outlined.Downloading, null) },
+        icon = { Icon(RhineIcons.Downloading, null) },
         title = { Text(progress.title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

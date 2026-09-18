@@ -1,0 +1,25 @@
+{
+  "source": "misans-webfont@4.3.1",
+  "fontVersion": "4.003",
+  "operation": "glyph subsets merged into native sfnt; source outlines unchanged",
+  "files": [
+    {
+      "file": "app/src/main/res/font/skp_misans_regular.otf",
+      "glyphs": 496,
+      "sha256": "7e144cafb7cb2357e9faf0f58c5d7118fc2c049bc1d0c47b7636475c865246c1",
+      "bytes": 75700
+    },
+    {
+      "file": "app/src/main/res/font/skp_misans_demibold.otf",
+      "glyphs": 496,
+      "sha256": "6d88a8b080577ad755e407a3dbce5d9c91ee4cb11801b5ae6b03e62faa3fc64d",
+      "bytes": 75380
+    },
+    {
+      "file": "app/src/main/res/font/skp_misans_bold.otf",
+      "glyphs": 496,
+      "sha256": "ca026dfa588374486e4bd65d80d8c5703e1cf28ef83c98213360a65b003df615",
+      "bytes": 78068
+    }
+  ]
+}

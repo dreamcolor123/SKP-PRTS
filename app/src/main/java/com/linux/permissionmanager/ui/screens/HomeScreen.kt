@@ -1,6 +1,7 @@
 package com.linux.permissionmanager.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.FontFamily
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.linux.permissionmanager.data.EnvironmentState
 import com.linux.permissionmanager.ui.HomeUiState
 import com.linux.permissionmanager.ui.components.*
@@ -21,6 +27,11 @@ import com.linux.permissionmanager.ui.theme.AppearanceTokens
 import com.linux.permissionmanager.ui.theme.LocalControlSurfaceAlpha
 import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
 import com.linux.permissionmanager.ui.theme.LocalContentDrawsBehindNavigation
+import com.linux.permissionmanager.ui.theme.LocalTerminalAppearance
+import com.linux.permissionmanager.ui.motion.LocalMotionActive
+import com.linux.permissionmanager.ui.motion.RollingText
+import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
+import com.linux.permissionmanager.ui.scene.TerminalCoreScene
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,30 +59,27 @@ fun HomeScreen(
     val drawsBehindNavigation = LocalContentDrawsBehindNavigation.current
     val navigationClearance = bottomPadding.calculateBottomPadding()
     val context = LocalContext.current
+    val appearance = LocalTerminalAppearance.current
+    val animationsAllowed = rememberTerminalMotionEnabled()
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+    val motionActive = LocalMotionActive.current && lifecycleState.isAtLeast(Lifecycle.State.RESUMED) &&
+        !commandDialog && !installDialog && !uninstallDialog && !rebootDialog && pendingReboot == null && !state.showCveSoftRebootPrompt
     val applicationLabel = remember(context.packageName) {
         runCatching { context.packageManager.getApplicationLabel(context.applicationInfo).toString() }
-            .getOrDefault("SKRoot Pro")
+            .getOrDefault("SKP-PRTS")
     }
 
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(applicationLabel)
-                        Text("环境与系统状态", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
+            TerminalTopBar(
+                title = applicationLabel,
+                code = "01 / SYSTEM OVERVIEW",
                     actions = {
                         IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "刷新") }
                         IconButton(onClick = { rebootDialog = true }) { Icon(Icons.Outlined.PowerSettingsNew, "重启选项") }
                         IconButton(onClick = onConfigureRoot) { Icon(Icons.Outlined.Key, "Root Key") }
                     },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = AppearanceTokens.pageSurfaceAlpha),
@@ -92,6 +100,25 @@ fun HomeScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
+            if (appearance.sceneEnabled) {
+                item(key = "core-scene") {
+                    TerminalCoreScene(
+                        modifier = Modifier.fillMaxWidth().height(228.dp),
+                        status = if (state.loading) "loading" else when (state.environment.state) {
+                            EnvironmentState.RUNNING -> "running"
+                            EnvironmentState.OUTDATED -> "outdated"
+                            EnvironmentState.PENDING_REBOOT -> "pending"
+                            EnvironmentState.NOT_INSTALLED -> "not_installed"
+                            EnvironmentState.FAULT -> "fault"
+                            else -> "unknown"
+                        },
+                        quality = appearance.sceneQuality.name.lowercase(),
+                        dark = MaterialTheme.colorScheme.background.luminance() < 0.5f,
+                        active = motionActive,
+                        reducedMotion = !animationsAllowed,
+                    )
+                }
+            }
             if (state.loading) item { LoadingState("正在检测 SKRoot 环境…") }
             state.error?.let { message -> item { ErrorState(message, onRefresh) } }
             if (!state.loading) {
@@ -123,17 +150,21 @@ fun HomeScreen(
                         )
                     }
                     val showEnvironmentActionsInStatus = state.environment.state != EnvironmentState.RUNNING
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = LocalControlSurfaceAlpha.current),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        shape = MaterialTheme.shapes.extraLarge,
-                    ) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface, thickness = 2.dp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("CORE / STATUS", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                            Text(if (state.environment.hotload) "HOTLOAD" else "BOOT", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                        }
+                        Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                Icon(icon, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(icon, null, modifier = Modifier.size(28.dp), tint = when (state.environment.state) {
+                                    EnvironmentState.RUNNING -> semantic.success
+                                    EnvironmentState.FAULT -> MaterialTheme.colorScheme.error
+                                    else -> semantic.warning
+                                })
                                 Column(Modifier.weight(1f)) {
-                                    Text(title, style = MaterialTheme.typography.titleLarge)
+                                    RollingText(title, style = MaterialTheme.typography.headlineSmall)
                                     Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 StatusTag(
@@ -142,7 +173,7 @@ fun HomeScreen(
                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 StatusTag(
                                     "核心 ${state.environment.installedVersion}",
                                     MaterialTheme.colorScheme.surfaceVariant,
@@ -170,7 +201,6 @@ fun HomeScreen(
                                                 EnvironmentState.PENDING_REBOOT -> "等待重启"
                                                 else -> "安装环境"
                                             },
-                                            maxLines = 1,
                                         )
                                     }
                                     OutlinedButton(
@@ -183,7 +213,7 @@ fun HomeScreen(
                                     ) {
                                         Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("卸载环境", maxLines = 1)
+                                        Text("卸载环境")
                                     }
                                 }
                             }
@@ -191,7 +221,7 @@ fun HomeScreen(
                     }
                 }
 
-                item { SectionTitle("系统状态") }
+                item { SectionTitle("01 / 系统状态") }
                 item {
                     val rows = listOf(
                         SystemRow(Icons.Outlined.Security, "SELinux", selinuxText(state.system.selinux), state.system.selinux != 0),
@@ -217,7 +247,7 @@ fun HomeScreen(
                     }
                 }
 
-                item { SectionTitle("基础操作") }
+                item { SectionTitle("02 / 基础操作") }
                 if (state.environment.state == EnvironmentState.RUNNING) {
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -248,7 +278,7 @@ fun HomeScreen(
                         }
                     }
                 }
-                item { SectionTitle("输出信息") }
+                item { SectionTitle("03 / 输出信息") }
                 item { ConsoleCard(state.console, onCopyConsole, onClearConsole) }
             }
         }

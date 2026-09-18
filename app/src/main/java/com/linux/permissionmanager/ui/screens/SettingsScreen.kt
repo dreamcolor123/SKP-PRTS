@@ -2,6 +2,12 @@ package com.linux.permissionmanager.ui.screens
 
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,9 +26,12 @@ import androidx.compose.ui.unit.dp
 import com.linux.permissionmanager.BuildConfig
 import com.linux.permissionmanager.data.AppearanceSettings
 import com.linux.permissionmanager.data.PaletteId
+import com.linux.permissionmanager.data.ThemeMode
+import com.linux.permissionmanager.data.SceneQuality
 import com.linux.permissionmanager.data.UpdateRepository
 import com.linux.permissionmanager.ui.SettingsUiState
 import com.linux.permissionmanager.ui.components.*
+import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
 import com.linux.permissionmanager.ui.theme.AppearanceTokens
 import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
 import com.linux.permissionmanager.ui.theme.LocalControlSurfaceAlpha
@@ -83,6 +92,11 @@ fun SettingsScreen(
     onClearBackground: () -> Unit,
     onResetAppearance: () -> Unit,
     onOpenLocalCustomizer: () -> Unit,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
+    onMotionEnabledChange: (Boolean) -> Unit = {},
+    onSceneEnabledChange: (Boolean) -> Unit = {},
+    onSceneQualityChange: (SceneQuality) -> Unit = {},
+    onReplayBoot: () -> Unit = {},
 ) {
     var basicDialog by remember { mutableStateOf(false) }
     var moduleDialog by remember { mutableStateOf(false) }
@@ -94,22 +108,15 @@ fun SettingsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val drawsBehindNavigation = LocalContentDrawsBehindNavigation.current
     val navigationClearance = bottomPadding.calculateBottomPadding()
+    val animationsAllowed = rememberTerminalMotionEnabled()
 
     Scaffold(
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text("设置")
-                        Text("环境保护、诊断与管理器信息", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
+            TerminalTopBar(
+                title = "设置",
+                code = "04 / TERMINAL CONFIGURATION",
                 actions = { IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "刷新") } },
                 scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = LocalChromeSurfaceAlpha.current),
-                ),
             )
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = AppearanceTokens.pageSurfaceAlpha),
@@ -132,41 +139,46 @@ fun SettingsScreen(
         ) {
             if (state.loading) item { LoadingState("正在读取设置…") }
             state.error?.let { item { ErrorState(it, onRefresh) } }
-            if (!state.loading) {
                 item {
-                    SegmentedGroup("外观") {
-                        Text(
-                            "主题配色",
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            PaletteId.values().forEach { palette ->
-                                PaletteOption(
-                                    palette = palette,
-                                    selected = appearance.palette == palette,
-                                    onClick = { onPaletteChange(palette) },
-                                )
+                    SegmentedGroup("01 / 显示与动态") {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                            ThemeMode.values().forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    selected = appearance.themeMode == mode,
+                                    onClick = { onThemeModeChange(mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.values().size),
+                                    icon = {},
+                                ) { Text(when (mode) { ThemeMode.SYSTEM -> "自动"; ThemeMode.LIGHT -> "浅色"; ThemeMode.DARK -> "深色" }) }
                             }
                         }
                         SegmentedSwitchItem(
-                            title = "玻璃导航栏",
-                            summary = if (appearance.glassNavigationEnabled) {
-                                "使用浮动玻璃导航栏，可实时模糊后方页面"
-                            } else {
-                                "使用 Material 3 原版底部导航栏"
-                            },
-                            icon = Icons.Outlined.BlurOn,
-                            checked = appearance.glassNavigationEnabled,
+                            title = "减少动态",
+                            summary = if (appearance.motionEnabled) "关闭" else "已开启",
+                            icon = Icons.Outlined.MotionPhotosOff,
+                            checked = !appearance.motionEnabled,
                             enabled = true,
-                            onCheckedChange = onGlassNavigationChange,
+                            onCheckedChange = { onMotionEnabledChange(!it) },
                         )
+                        SegmentedSwitchItem(
+                            title = "三维核心",
+                            summary = if (appearance.sceneEnabled) "已开启" else "已关闭",
+                            icon = Icons.Outlined.ViewInAr,
+                            checked = appearance.sceneEnabled,
+                            enabled = true,
+                            onCheckedChange = onSceneEnabledChange,
+                        )
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                            SceneQuality.values().forEachIndexed { index, quality ->
+                                SegmentedButton(
+                                    selected = appearance.sceneQuality == quality,
+                                    onClick = { onSceneQualityChange(quality) },
+                                    enabled = appearance.sceneEnabled,
+                                    shape = SegmentedButtonDefaults.itemShape(index, SceneQuality.values().size),
+                                    icon = {},
+                                ) { Text(if (quality == SceneQuality.BALANCED) "均衡" else "完整") }
+                            }
+                        }
+                        SegmentedItem("重播终端接入", "SKP-PRTS", Icons.Outlined.PlayCircleOutline, onClick = onReplayBoot, trailing = { Icon(Icons.Outlined.ChevronRight, null) })
                         SegmentedItem(
                             title = "背景图片",
                             summary = appearance.backgroundUri?.let { backgroundName(it) } ?: "使用纯色背景",
@@ -186,7 +198,11 @@ fun SettingsScreen(
                                 )
                             },
                         )
-                        AnimatedVisibility(visible = transparencyExpanded) {
+                        AnimatedVisibility(
+                            visible = transparencyExpanded,
+                            enter = if (animationsAllowed) fadeIn() + expandVertically() else EnterTransition.None,
+                            exit = if (animationsAllowed) shrinkVertically() + fadeOut() else ExitTransition.None,
+                        ) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.large,
@@ -201,13 +217,6 @@ fun SettingsScreen(
                                         value = appearance.chromeTransparency,
                                         onValueChange = onChromeTransparencyChange,
                                         description = "0% 为不透明，100% 为完全透明。",
-                                    )
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                    TransparencySlider(
-                                        title = "玻璃导航栏透明度",
-                                        value = appearance.glassNavigationTransparency,
-                                        onValueChange = onGlassNavigationTransparencyChange,
-                                        description = "0% 为完全不透明，100% 为完全透明。",
                                     )
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                     TransparencySlider(
@@ -242,15 +251,16 @@ fun SettingsScreen(
                         }
                         SegmentedItem(
                             title = "恢复默认外观",
-                            summary = "靛蓝紫、玻璃导航栏透明度 50%、控件透明度 24%、纯白背景",
+                            summary = "自动主题 · 均衡画质",
                             icon = Icons.Outlined.Restore,
                             onClick = { resetAppearanceDialog = true },
                             trailing = { Icon(Icons.Outlined.ChevronRight, null) },
                         )
                     }
                 }
+            if (!state.loading) {
                 item {
-                    SegmentedGroup("环境保护") {
+                    SegmentedGroup("02 / 环境保护") {
                         SegmentedSwitchItem(
                             title = "开机失败保护",
                             summary = "在环境异常时提供启动保护",
@@ -270,7 +280,7 @@ fun SettingsScreen(
                     }
                 }
                 item {
-                    SegmentedGroup("管理器") {
+                    SegmentedGroup("03 / 管理器") {
                         SegmentedItem(
                             title = "本地定制管理器",
                             summary = "在设备内定制包名、名称与应用图标",
@@ -281,7 +291,7 @@ fun SettingsScreen(
                     }
                 }
                 item {
-                    SegmentedGroup("日志") {
+                    SegmentedGroup("04 / 日志") {
                         SegmentedSwitchItem(
                             title = "详细日志",
                             summary = "记录更多核心运行信息",
@@ -295,7 +305,7 @@ fun SettingsScreen(
                     }
                 }
                 item {
-                    SegmentedGroup("核心诊断") {
+                    SegmentedGroup("05 / 核心诊断") {
                         SegmentedItem("单项测试", "检查通道、内核地址与跳板", Icons.Outlined.FactCheck, onClick = { basicDialog = true }, trailing = { Icon(Icons.Outlined.ChevronRight, null) })
                         SegmentedItem("默认模块测试", "运行默认模块打印或执行测试", Icons.Outlined.Extension, onClick = { moduleDialog = true }, trailing = { Icon(Icons.Outlined.ChevronRight, null) })
                     }
@@ -323,7 +333,7 @@ fun SettingsScreen(
                     SegmentedGroup("更新与关于") {
                         SegmentedSwitchItem(
                             title = "检测管理器更新",
-                            summary = "启用后从本项目 GitHub Releases 检查；默认关闭",
+                            summary = "继承的原 Compose 更新源，非 SKP-PRTS 更新渠道",
                             icon = Icons.Outlined.SystemUpdate,
                             checked = state.updateCheckEnabled,
                             enabled = state.busyItem == null,
@@ -332,7 +342,7 @@ fun SettingsScreen(
                         SegmentedItem("管理器版本", BuildConfig.VERSION_NAME, Icons.Outlined.Info)
                         SegmentedItem("内置核心版本", state.sdkVersion, Icons.Outlined.Memory)
                         SegmentedItem("SKRoot 模块开发指南", "PDF 文档", Icons.Outlined.MenuBook, onClick = { onOpenUrl("https://abcz316.github.io/SKRoot-linuxKernelRoot/skroot_pro_app/module_developer_help.pdf") }, trailing = { Icon(Icons.Outlined.OpenInNew, null) })
-                        SegmentedItem("管理器项目 GitHub", "github.com/dreamcolor123/SKRoot-Pro-Compose", Icons.Outlined.Code, onClick = { onOpenUrl(UpdateRepository.REPOSITORY_URL) }, trailing = { Icon(Icons.Outlined.OpenInNew, null) })
+                        SegmentedItem("原 Compose 项目", "github.com/dreamcolor123/SKRoot-Pro-Compose", Icons.Outlined.Code, onClick = { onOpenUrl(UpdateRepository.REPOSITORY_URL) }, trailing = { Icon(Icons.Outlined.OpenInNew, null) })
                         SegmentedItem("SKRoot 上游 GitHub", "github.com/abcz316/SKRoot-linuxKernelRoot", Icons.Outlined.AccountTree, onClick = { onOpenUrl("https://github.com/abcz316/SKRoot-linuxKernelRoot") }, trailing = { Icon(Icons.Outlined.OpenInNew, null) })
                         SegmentedItem("Telegram", "t.me/skrootabc", Icons.Outlined.Send, onClick = { onOpenUrl("https://t.me/skrootabc") }, trailing = { Icon(Icons.Outlined.OpenInNew, null) })
                     }
@@ -437,7 +447,6 @@ private fun TransparencySlider(
 
 private fun transparencySummary(appearance: AppearanceSettings): String =
     "栏位 ${(appearance.chromeTransparency * 100).roundToInt()}% · " +
-        "玻璃 ${(appearance.glassNavigationTransparency * 100).roundToInt()}% · " +
         "控件 ${(appearance.controlTransparency * 100).roundToInt()}% · " +
         if (appearance.backgroundEnabled) {
             "图片 ${(appearance.backgroundAlpha * 100).roundToInt()}%"

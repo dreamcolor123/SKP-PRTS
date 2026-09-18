@@ -1,0 +1,1 @@
+SKRoot Pro SK trace, circuit nodes and stencil wordmark are original authored vector geometry for SKP-PRTS. See src/brand.ts. Animation tracks derive from RhineLabUI at 17a16118f31b55b7156b68e89b6fe989408351f0. Existing font artwork outside the product wordmark retains its original notices.

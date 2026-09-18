@@ -12,7 +12,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.InstallMobile
 import androidx.compose.material3.*
+import com.linux.permissionmanager.ui.rhine.RhineIcons
+import com.linux.permissionmanager.ui.rhine.RhineButton as Button
+import com.linux.permissionmanager.ui.rhine.RhineOutlinedButton as OutlinedButton
+import com.linux.permissionmanager.ui.rhine.RhineTonalButton as FilledTonalButton
+import com.linux.permissionmanager.ui.rhine.RhineTextButton as TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,7 +27,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -85,29 +94,35 @@ fun LocalCustomizerDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 560.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 6.dp,
+            modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(0.96f).fillMaxHeight(0.92f),
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surface,
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(22.dp),
+                    .fillMaxSize()
+                    .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Android, null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(RhineIcons.Android, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(12.dp))
-                    Text("本地定制管理器", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text("BUILD / LOCAL", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("本地定制管理器", style = MaterialTheme.typography.titleLarge)
+                    }
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            Icons.Outlined.Close,
+                            RhineIcons.Close,
                             if (state.building && state.stage != CustomBuildStage.INSTALLING) "取消构建" else "关闭",
                         )
                     }
                 }
+                HorizontalDivider()
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
 
                 val packageSupport = state.packageError
                     ?: state.signatureConflict
@@ -170,16 +185,13 @@ fun LocalCustomizerDialog(
                     supportingText = { Text("留空使用默认名称：${state.defaultManagerName}") },
                 )
 
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                ) {
+                HorizontalDivider()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        CustomIconPreview(state.iconUri, Modifier.size(72.dp))
+                        CustomIconPreview(state.iconUri, Modifier.size(52.dp))
                         Column(Modifier.weight(1f)) {
                             Text("本地图标", style = MaterialTheme.typography.titleMedium)
                             Text(
@@ -188,13 +200,10 @@ fun LocalCustomizerDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        OutlinedButton(onClick = onPickIcon, enabled = !state.building) {
-                            Icon(Icons.Outlined.Image, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (state.iconUri == null) "选择" else "更换")
+                        IconButton(onClick = onPickIcon, enabled = !state.building) {
+                            Icon(RhineIcons.Image, if (state.iconUri == null) "选择图标" else "更换图标")
                         }
                     }
-                }
                 if (state.iconUri != null) {
                     TextButton(
                         onClick = onUseDefaultIcon,
@@ -220,21 +229,33 @@ fun LocalCustomizerDialog(
                         )
                     }
                 }
+                }
 
-                Row(
+                HorizontalDivider()
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    maxItemsInEachRow = if (LocalDensity.current.fontScale > 1.3f) 1 else 2,
                 ) {
                     OutlinedButton(
                         onClick = onExport,
                         enabled = state.canBuild,
                         modifier = Modifier.weight(1f),
-                    ) { Text("仅导出 APK", maxLines = 1) }
+                    ) {
+                        Icon(RhineIcons.SaveAlt, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("仅导出 APK")
+                    }
                     Button(
                         onClick = onBuildAndInstall,
                         enabled = state.canInstall,
                         modifier = Modifier.weight(1f),
-                    ) { Text("构建并安装", maxLines = 1) }
+                    ) {
+                        Icon(RhineIcons.InstallMobile, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("构建并安装")
+                    }
                 }
             }
         }
@@ -268,14 +289,14 @@ private fun CustomIconPreview(uri: Uri?, modifier: Modifier = Modifier) {
             }.getOrNull()
         }
     }
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(6.dp)
     val preview = bitmap ?: defaultBitmap
     if (preview == null) {
         Box(
             modifier.clip(shape).background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.Image, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            Icon(RhineIcons.Image, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
         }
     } else {
         Image(

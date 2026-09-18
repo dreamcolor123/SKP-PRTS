@@ -37,6 +37,29 @@ enum class PaletteId(
     }
 }
 
+enum class ThemeMode {
+    SYSTEM, LIGHT, DARK;
+
+    companion object {
+        fun fromKey(value: String): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
+    }
+}
+
+enum class SceneQuality {
+    BALANCED, FULL;
+
+    companion object {
+        fun fromKey(value: String): SceneQuality = entries.firstOrNull { it.name == value } ?: BALANCED
+    }
+}
+
+internal object TerminalAppearanceKeys {
+    const val THEME_MODE = "appearance_terminal_v2_theme_mode"
+    const val MOTION_ENABLED = "appearance_terminal_v2_motion_enabled"
+    const val SCENE_ENABLED = "appearance_terminal_v2_scene_enabled"
+    const val SCENE_QUALITY = "appearance_terminal_v2_scene_quality"
+}
+
 data class AppearanceSettings(
     val palette: PaletteId = PaletteId.INDIGO,
     val backgroundUri: String? = null,
@@ -45,6 +68,10 @@ data class AppearanceSettings(
     val controlTransparency: Float = 0.24f,
     val glassNavigationEnabled: Boolean = true,
     val glassNavigationTransparency: Float = 0.5f,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val motionEnabled: Boolean = true,
+    val sceneEnabled: Boolean = true,
+    val sceneQuality: SceneQuality = SceneQuality.BALANCED,
 ) {
     val backgroundEnabled: Boolean get() = !backgroundUri.isNullOrBlank()
     val chromeSurfaceAlpha: Float get() = (1f - chromeTransparency).coerceIn(0f, 1f)
@@ -59,6 +86,14 @@ class AppearanceStore(private val context: Context) {
     fun setPalette(palette: PaletteId) {
         update(mutableState.value.copy(palette = palette))
     }
+
+    fun setThemeMode(value: ThemeMode) = update(mutableState.value.copy(themeMode = value))
+
+    fun setMotionEnabled(value: Boolean) = update(mutableState.value.copy(motionEnabled = value))
+
+    fun setSceneEnabled(value: Boolean) = update(mutableState.value.copy(sceneEnabled = value))
+
+    fun setSceneQuality(value: SceneQuality) = update(mutableState.value.copy(sceneQuality = value))
 
     fun setBackground(uri: Uri?) {
         uri?.let {
@@ -123,6 +158,10 @@ class AppearanceStore(private val context: Context) {
         glassNavigationTransparency = AppSettings
             .getString(AppSettings.KEY_APPEARANCE_GLASS_NAVIGATION_TRANSPARENCY, "0.5")
             .toFloatOrNull()?.coerceIn(0f, 1f) ?: 0.5f,
+        themeMode = ThemeMode.fromKey(AppSettings.getString(TerminalAppearanceKeys.THEME_MODE, "SYSTEM")),
+        motionEnabled = AppSettings.getBoolean(TerminalAppearanceKeys.MOTION_ENABLED, true),
+        sceneEnabled = AppSettings.getBoolean(TerminalAppearanceKeys.SCENE_ENABLED, true),
+        sceneQuality = SceneQuality.fromKey(AppSettings.getString(TerminalAppearanceKeys.SCENE_QUALITY, "BALANCED")),
     )
 
     private fun update(value: AppearanceSettings) {
@@ -137,5 +176,9 @@ class AppearanceStore(private val context: Context) {
             AppSettings.KEY_APPEARANCE_GLASS_NAVIGATION_TRANSPARENCY,
             value.glassNavigationTransparency.toString(),
         )
+        AppSettings.setString(TerminalAppearanceKeys.THEME_MODE, value.themeMode.name)
+        AppSettings.setBoolean(TerminalAppearanceKeys.MOTION_ENABLED, value.motionEnabled)
+        AppSettings.setBoolean(TerminalAppearanceKeys.SCENE_ENABLED, value.sceneEnabled)
+        AppSettings.setString(TerminalAppearanceKeys.SCENE_QUALITY, value.sceneQuality.name)
     }
 }

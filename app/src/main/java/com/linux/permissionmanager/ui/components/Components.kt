@@ -1,29 +1,43 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.linux.permissionmanager.ui.components
 
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.linux.permissionmanager.utils.FileUtils
 import com.linux.permissionmanager.ui.theme.LocalControlSurfaceAlpha
+import com.linux.permissionmanager.ui.theme.LocalChromeSurfaceAlpha
+import com.linux.permissionmanager.ui.theme.TerminalPalette
+import com.linux.permissionmanager.ui.motion.GlitchText
+import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
 
 @Composable
 fun TonalCard(
@@ -33,16 +47,14 @@ fun TonalCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = MaterialTheme.shapes.extraLarge
-    if (onClick != null) {
-        Card(onClick = onClick, enabled = enabled, modifier = modifier, shape = shape, colors = CardDefaults.cardColors(containerColor = color.copy(alpha = LocalControlSurfaceAlpha.current))) {
-            Column(content = content)
-        }
-    } else {
-        Card(modifier = modifier, shape = shape, colors = CardDefaults.cardColors(containerColor = color.copy(alpha = LocalControlSurfaceAlpha.current))) {
-            Column(content = content)
-        }
-    }
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Column(
+        modifier = modifier
+            .background(color.copy(alpha = LocalControlSurfaceAlpha.current))
+            .drawBehind { drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
+            .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier),
+        content = content,
+    )
 }
 
 @Composable
@@ -51,7 +63,7 @@ fun StatusTag(
     containerColor: Color = MaterialTheme.colorScheme.primary,
     contentColor: Color = MaterialTheme.colorScheme.onPrimary,
 ) {
-    Surface(color = containerColor, contentColor = contentColor, shape = RoundedCornerShape(50)) {
+    Surface(color = containerColor, contentColor = contentColor, shape = RoundedCornerShape(2.dp)) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -63,13 +75,17 @@ fun StatusTag(
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        modifier = modifier.padding(start = 16.dp, bottom = 8.dp),
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-    )
+    Row(modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(width = 3.dp, height = 14.dp).background(TerminalPalette.Signal))
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp).weight(1f),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Box(Modifier.width(24.dp).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+    }
 }
 
 @Composable
@@ -80,7 +96,7 @@ fun SegmentedGroup(
 ) {
     Column(modifier) {
         SectionTitle(title)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
+        Column(content = content)
     }
 }
 
@@ -94,21 +110,22 @@ fun SegmentedItem(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val line = MaterialTheme.colorScheme.outlineVariant
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
+            .drawBehind { drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
             .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier),
         color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = LocalControlSurfaceAlpha.current),
         contentColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(0.dp),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            if (icon != null) Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 if (!summary.isNullOrBlank()) {
@@ -147,7 +164,11 @@ fun LoadingState(label: String, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        CircularProgressIndicator()
+        if (rememberTerminalMotionEnabled()) {
+            LinearProgressIndicator(Modifier.width(112.dp).height(3.dp), color = MaterialTheme.colorScheme.onSurface, trackColor = MaterialTheme.colorScheme.primaryContainer)
+        } else {
+            Box(Modifier.width(36.dp).height(3.dp).background(TerminalPalette.Signal))
+        }
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -159,17 +180,15 @@ fun EmptyState(
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Outlined.Inbox,
 ) {
-    TonalCard(modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(32.dp),
+            modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 36.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(icon, null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(icon, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
 }
 
 @Composable
@@ -207,22 +226,71 @@ fun ConsoleCard(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF17151A), contentColor = Color(0xFFE7E1E8)),
-        shape = MaterialTheme.shapes.extraLarge,
+        color = TerminalPalette.Night,
+        contentColor = Color(0xFFEDF2EE),
+        shape = RoundedCornerShape(4.dp),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(5.dp).background(TerminalPalette.Signal))
+                Text("OUTPUT", Modifier.padding(start = 8.dp).weight(1f), style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = Color(0xFFAEBAB2))
+                ConsoleAction("复制", Icons.Outlined.ContentCopy, onCopy, text.isNotBlank())
+                ConsoleAction("清空", Icons.Outlined.DeleteOutline, onClear, text.isNotBlank())
+            }
+            HorizontalDivider(color = Color(0xFF39473D))
+            Spacer(Modifier.height(12.dp))
+            SelectionContainer { Text(
                 text = text.ifBlank { "命令输出将显示在这里" },
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
                 minLines = 5,
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onCopy, enabled = text.isNotBlank()) { Text("复制") }
-                TextButton(onClick = onClear, enabled = text.isNotBlank()) { Text("清空") }
+            ) }
+        }
+    }
+}
+
+@Composable
+private fun ConsoleAction(label: String, icon: ImageVector, onClick: () -> Unit, enabled: Boolean) {
+    TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(), tooltip = { PlainTooltip { Text(label) } }, state = rememberTooltipState()) {
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(icon, contentDescription = label, tint = if (enabled) Color(0xFFEDF2EE) else Color(0xFF7E8C83))
+        }
+    }
+}
+
+@Composable
+fun TerminalTopBar(
+    title: String,
+    code: String,
+    actions: @Composable RowScope.() -> Unit = {},
+    navigationIcon: @Composable () -> Unit = {},
+    scrollBehavior: TopAppBarScrollBehavior? = null,
+) {
+    val line = MaterialTheme.colorScheme.outlineVariant
+    // Variable-height titles cannot use the fixed-height Material collapse range.
+    SideEffect {
+        scrollBehavior?.state?.heightOffsetLimit = 0f
+        scrollBehavior?.state?.heightOffset = 0f
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("terminal-top-bar")
+            .drawBehind { drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) },
+        color = MaterialTheme.colorScheme.background.copy(alpha = LocalChromeSurfaceAlpha.current),
+    ) {
+        Row(
+            Modifier.windowInsetsPadding(TopAppBarDefaults.windowInsets)
+                .heightIn(min = 78.dp).padding(horizontal = 4.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box { navigationIcon() }
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(code, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                GlitchText(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             }
+            Row(verticalAlignment = Alignment.CenterVertically, content = actions)
         }
     }
 }
