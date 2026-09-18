@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { FolderDepthMask } from "./folder-depth-mask";
+import { FolderFramePipeline } from "./folder-frame-pipeline";
 import { ArchiveShellHeight } from "./archive-shell-height";
+import { cinematicCameraPose } from "./cinematic-camera";
 import { WORKING_HEIGHT, boundedTilt, followTilt } from "./spatial-motion";
 import { ArchiveVisibility } from "./archive-visibility";
 import { InstanceUpdates } from "./instance-updates";
@@ -66,6 +68,7 @@ export class ArchiveScene {
   private motionTarget = { x:0, y:0 };
   private motionTilt = { x:0, y:0 };
   setDeviceTilt(x:number,y:number) { this.motionTarget=boundedTilt(x,y); }
+  resumeClock(time:number) { this.last=time;if(this.decryptionLastTime!==null)this.decryptionLastTime=time; }
   /** Keep the camera in its established work-surface shot for section hops. */
   setWorkspaceNavigation(active: boolean) { this.quickWorkspaceNavigation = active; }
   get workHeightScale() { return this.heightScale; }
@@ -75,25 +78,48 @@ export class ArchiveScene {
   private faceDepthSample?: ReturnType<FolderDepthMask["sampleAsync"]>;
   private faceDepthPending = false;
   private folderFrameSync = false;
-  private folderPaintPending = false;
-  private folderFrameSequence = 0;
+  private folderEpoch = 0;
+  private folderFrames?: FolderFramePipeline;
+  private simulationFrames=0;
+  private pipelineBackpressure=0;
+  private pipelineFailures=0;
   private folderPresentedSequence = 0;
-  setFolderFrameSync(enabled:boolean) {
-    if(this.folderFrameSync===enabled)return;
-    this.folderFrameSync=enabled;this.folderPaintPending=false;this.folderFrameSequence++;
+  private invalidateFolderFrames() {
+    this.folderEpoch++;this.folderFrames?.invalidate(this.folderEpoch);
     this.faceDepthFrame=-1;this.renderState.invalidate();
   }
-  get pendingFolderFrame() { return this.folderFrameSync&&this.folderPaintPending?this.folderFrameSequence:undefined; }
+  setFolderFrameSync(enabled:boolean) {
+    if(this.folderFrameSync===enabled)return;
+    this.folderFrameSync=enabled;this.invalidateFolderFrames();
+    if(!enabled){this.folderFrames?.clearPresented();this.folderPresentedSequence=0;delete this.renderer.domElement.dataset.folderFrame;}
+  }
+  private get folderSnapshot() { return this.folderFrameSync ? this.folderFrames?.acquire(this.folderEpoch)?.snapshot ?? this.folderFrames?.presentedSnapshot : undefined; }
+  get pendingFolderFrame() { return this.folderFrameSync?this.folderFrames?.acquire(this.folderEpoch)?.sequence:undefined; }
   get folderFrameSynchronized() { return this.folderFrameSync; }
   presentFolderFrame(sequence:number) {
-    if(this.pendingFolderFrame!==sequence)return false;
-    this.paintScene();this.folderPresentedSequence=sequence;this.folderPaintPending=false;
-    this.renderer.domElement.dataset.folderFrame=String(sequence);
+    if(!this.folderFrames?.present(sequence,this.folderEpoch))return false;
+    this.folderPresentedSequence=sequence;
     return true;
   }
+  blitFolderFrame() {
+    if(this.folderFrameSync&&this.folderFrames?.blit())this.renderer.domElement.dataset.folderFrame=String(this.folderPresentedSequence);
+  }
+  projectFolderCard(x:number,y:number,z=.255) {
+    const snapshot=this.folderSnapshot;
+    if(!snapshot)return this.projectCard(x,y,z);
+    const point=new THREE.Vector3(x,y,z).applyMatrix4(snapshot.projection);
+    return [(point.x+1)*this.container.clientWidth/2,(1-point.y)*this.container.clientHeight/2];
+  }
+  get folderHeightScale() { return this.folderSnapshot?.height??this.heightScale; }
+  get folderDeviceTilt() { return this.folderSnapshot?.tilt??this.motionTilt; }
   folderMask() {
+    if(this.folderFrameSync){
+      const frame=this.folderFrames?.acquire(this.folderEpoch);
+      if(!frame)throw new Error('No completed folder frame');
+      return frame.mask;
+    }
     this.faceDepth ??= new FolderDepthMask(this.renderer,this.scene,this.camera,this.model);
-    const frame=this.folderFrameSync?this.folderFrameSequence:this.renderedFrames;
+    const frame=this.renderedFrames;
     if(!this.faceDepthPending&&(!this.faceDepthSample || this.faceDepthFrame !== frame)) {
       this.faceDepthFrame=frame;
       this.faceDepthPending=true;
@@ -114,6 +140,7 @@ export class ArchiveScene {
   }
   revealImmediately() { this.reveal = this.targetReveal; }
   dispose() {
+    this.folderFrames?.dispose();
     this.faceDepth?.dispose();this.faceDepth=undefined;this.faceDepthSample=undefined;
     this.inputEvents.abort();
     this.cancelPointer();
@@ -223,6 +250,7 @@ export class ArchiveScene {
   private shellHeight?: ArchiveShellHeight;
   private appearance = new CardAppearance();
   private decryption = new DecryptionController();
+  private decryptionLastTime:number|null=null;
   private cursor = new THREE.Vector2();
   private raycaster = new THREE.Raycaster();
   private dummy = new THREE.Object3D();
@@ -407,6 +435,8 @@ export class ArchiveScene {
       const name = source.name.replace(/\.\d+$/, "");
       const mat = source.clone() as THREE.MeshPhysicalMaterial;
       mat.envMapIntensity = 0.6;
+      const accent = name === "Amber_Optical_Inlay" ? "#d0bbed" : name === "Champagne_Index" ? "#c5b0df" : name === "Index_Inlay" || name.includes("Orange") ? "#cdb6ed" : undefined;
+      if(accent)mat.color.set(accent);
       if (name === "Frosted_Polymer") {
         mat.color.set("#fffdfa");
         mat.transmission = 0.9;
@@ -506,7 +536,7 @@ export class ArchiveScene {
         arrayMat.roughness = 0.38;
       }
       if (name === "Index_Inlay") {
-        arrayMat.color.set("#e4d6c5");
+        arrayMat.color.set("#cdb6ed");
         arrayMat.metalness = 0.05;
       }
       this.appearance.register(name, mat, arrayMat);
@@ -617,11 +647,12 @@ export class ArchiveScene {
     };
   }
   setMode(mode: "hidden" | "archive" | "detail") {
-    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;this.renderState.invalidate();
+    this.invalidateFolderFrames();
     this.cancelPointer();
     this.setHover(null);
-    if (mode === "detail") this.decryption.enter(this.scanBlend > .9 && this.decryption.clarity > .999);
-    else this.decryption.leave();
+    if (mode === "detail") {
+      if(this.decryption.enter(this.scanBlend > .9 && this.decryption.clarity > .999))this.decryptionLastTime=performance.now()/1000;
+    } else {this.decryption.leave();this.decryptionLastTime=null;}
     if (mode === "hidden") this.decryption.select();
     if (mode !== "archive") this.pendingPulse = null;
     this.looping = mode !== "hidden";
@@ -735,8 +766,7 @@ export class ArchiveScene {
     }
   }
   select(index: number, navigation?: ArchiveNavigation) {
-    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;
-    this.renderState.invalidate();
+    this.invalidateFolderFrames();
     this.selectedRecord = index;
     if (!this.navigatingDrag) this.cancelPointer();
     this.setHover(null);
@@ -830,7 +860,7 @@ export class ArchiveScene {
     c.fillStyle = "#171713";
     c.font = "bold 64px MiSans";
     c.fillText("INFO", 830, 143);
-    c.drawImage(this.labelMark, 790, 242, 210, 98);
+    c.drawImage(this.labelMark, 790, 246.38, 210, 89.24);
     if (this.looping) {
       const record = records[index];
       if (record) {
@@ -862,8 +892,7 @@ export class ArchiveScene {
     this.instanceCapacity = capacity;
   }
   resize() {
-    this.folderPaintPending=false;this.folderFrameSequence++;this.faceDepthFrame=-1;this.renderState.invalidate();
-    this.renderState.invalidate();
+    this.invalidateFolderFrames();
     const w = this.container.clientWidth,
       h = this.container.clientHeight;
     const kind = this.container.closest<HTMLElement>("[data-layout]")?.dataset.layout ?? "";
@@ -1240,9 +1269,11 @@ export class ArchiveScene {
     time: number,
     cinematic?: { reveal: number; lift: number; zoom: number; time: number },
   ) {
-    // Keep simulation, camera and geometry immutable until their asynchronous
-    // depth mask is ready. The previous canvas remains visible in the meantime.
-    if(this.folderFrameSync&&(this.folderPaintPending||this.faceDepthPending))return;
+    // Simulation and input keep advancing while completed color/depth pairs
+    // are presented independently. A slow GPU fences a slot, never the scene.
+    this.simulationFrames++;
+    const failures=this.folderFrames?.failureCount??0;
+    if(failures!==this.pipelineFailures){this.pipelineFailures=failures;this.renderState.invalidate();}
     const elapsed = Math.max(0, time - this.last || 0.016);
     const dt = Math.min(elapsed, 0.05);
     this.last = time;
@@ -1461,7 +1492,9 @@ export class ArchiveScene {
       ? cinematic.zoom
       : THREE.MathUtils.lerp(this.detail, cameraTarget, blend);
     const detail = this.detail;
-    this.decryption.update(dt, detail > .78 && this.lift.value > 3.3, this.reduced,
+    const glassElapsed=this.decryptionLastTime===null?elapsed:Math.max(0,time-this.decryptionLastTime);
+    if(this.decryptionLastTime!==null)this.decryptionLastTime=Math.max(this.decryptionLastTime,time);
+    this.decryption.update(glassElapsed, this.targetDetail > 0, this.reduced,
       cinematic ? shot + 5 : undefined);
     this.appearance.apply(this.model, ease(this.lift.value / 0.4));
     this.appearance.setClarity(this.model, this.decryption.clarity);
@@ -1548,11 +1581,12 @@ export class ArchiveScene {
     // Do not calibrate field of view from the visible fragment of a file.
     const orbit = ease((shot - 22.6) / 1.6);
     const settle = ease((shot - 24.25) / 2.25);
-    const yaw = THREE.MathUtils.degToRad(89 - 22 * orbit - 8 * settle);
+    const cameraTrack=cinematic?cinematicCameraPose(shot):undefined;
+    const yaw = THREE.MathUtils.degToRad(cameraTrack?.yaw ?? 89 - 22 * orbit - 8 * settle);
     const elevation = THREE.MathUtils.degToRad(
-      3 + 40 * ease((shot - 21.96) / 0.22) - 8 * orbit - 16 * settle,
+      cameraTrack?.elevation ?? 3 + 40 * ease((shot - 21.96) / 0.22) - 8 * orbit - 16 * settle,
     );
-    const span = THREE.MathUtils.lerp(
+    const span = cameraTrack?.span ?? THREE.MathUtils.lerp(
       THREE.MathUtils.lerp(10.8, 10.3, orbit),
       7.33,
       settle,
@@ -1560,15 +1594,15 @@ export class ArchiveScene {
     const responsiveOpening = Boolean(cinematic) && this.container.closest<HTMLElement>("[data-layout]")?.dataset.layout === "opening";
     const openingAspect = responsiveOpening ? this.container.clientWidth / this.container.clientHeight / (16 / 9) : 1;
     const openingSpan = (value: number) => value / Math.min(1, openingAspect);
-    const distance = THREE.MathUtils.lerp(
+    const distance = cameraTrack?.distance ?? THREE.MathUtils.lerp(
       THREE.MathUtils.lerp(28 + 7 * orbit, 140, settle),
       72,
       detail,
     );
     const arrayAim = new THREE.Vector3(
       -1.091,
-      THREE.MathUtils.lerp(-2.55 + 0.4 * orbit, -0.045, settle),
-      THREE.MathUtils.lerp(2.48, 0.481, settle),
+      cameraTrack?.aimY ?? THREE.MathUtils.lerp(-2.55 + 0.4 * orbit, -0.045, settle),
+      cameraTrack?.aimZ ?? THREE.MathUtils.lerp(2.48, 0.481, settle),
     );
     const cameraAim = arrayAim.clone();
     const viewDirection = new THREE.Vector3(
@@ -1576,19 +1610,7 @@ export class ArchiveScene {
       Math.sin(elevation),
       Math.cos(yaw) * Math.cos(elevation),
     );
-    if (cinematic) {
-      const earlyTurn = ease((shot - 27.3) / 1.3);
-      const finalTurn = ease((shot - 28.6) / 5.4);
-      const shotYaw =
-        yaw - THREE.MathUtils.degToRad(9 * earlyTurn + 32 * finalTurn);
-      const shotElevation =
-        elevation - THREE.MathUtils.degToRad(1.5 * earlyTurn + 3.7 * finalTurn);
-      viewDirection.set(
-        -Math.sin(shotYaw) * Math.cos(shotElevation),
-        Math.sin(shotElevation),
-        Math.cos(shotYaw) * Math.cos(shotElevation),
-      );
-    } else {
+    if (!cinematic) {
       viewDirection
         .lerp(new THREE.Vector3(-0.277, 0.238, 0.931), detail)
         .normalize();
@@ -1602,20 +1624,7 @@ export class ArchiveScene {
         viewDirection.applyAxisAngle(screenRight,this.motionTilt.y*.045);
       }
     }
-    if (cinematic) {
-      const pan = ease((shot - 25.4) / 0.95);
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      cameraAim.addScaledVector(
-        right,
-        -2.05 * (1 - pan) * ease((shot - 24.2) / 0.8),
-      );
-    }
-    if (cinematic && shot >= 25.05 && shot <= 27.3) {
-      // Frames 760–785: the camera carries the same physical column from the
-      // right into the selected position while the neighboring crests subside.
-      const pan = ease((shot - 25.4) / 1.05);
+    if (cameraTrack) {
       const right = new THREE.Vector3()
         .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
         .normalize();
@@ -1623,45 +1632,19 @@ export class ArchiveScene {
         .crossVectors(viewDirection, right)
         .normalize();
       const pixelScale = 1080 / openingSpan(span);
+      cameraAim.addScaledVector(right,cameraTrack.pan);
       const anchorAim = this.model.position
         .clone()
         .add(new THREE.Vector3(-2.5, 3.7, 0));
       anchorAim.addScaledVector(
         right,
-        -(THREE.MathUtils.lerp(840, 518, pan) - 960) * openingAspect / pixelScale,
+        -(cameraTrack.screenX - 960) * openingAspect / pixelScale,
       );
       anchorAim.addScaledVector(
         up,
-        -(540 - THREE.MathUtils.lerp(340, 288, pan)) / pixelScale,
+        -(540 - cameraTrack.screenY) / pixelScale,
       );
-      cameraAim.lerp(anchorAim, ease((shot - 25.05) / 0.35));
-    }
-    if (cinematic && shot > 27.3) {
-      const close = ease((shot - 27.3) / 6.7);
-      const extractionCamera = ease((shot - 27.3) / 1.25);
-      const screenX = THREE.MathUtils.lerp(
-        518 - 98 * extractionCamera,
-        618,
-        close,
-      );
-      const screenY = THREE.MathUtils.lerp(
-        296 + 34 * extractionCamera,
-        287,
-        close,
-      );
-      const pixelScale = 1080 / openingSpan(THREE.MathUtils.lerp(span, 5.9, detail));
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      const up = new THREE.Vector3()
-        .crossVectors(viewDirection, right)
-        .normalize();
-      const anchorAim = this.model.position
-        .clone()
-        .add(new THREE.Vector3(-2.5, 3.7, 0));
-      anchorAim.addScaledVector(right, -(screenX - 960) * openingAspect / pixelScale);
-      anchorAim.addScaledVector(up, -(540 - screenY) / pixelScale);
-      cameraAim.lerp(anchorAim, ease((shot - 27.3) / 0.5));
+      cameraAim.lerp(anchorAim,cameraTrack.anchorMix);
     }
     const framing = archiveFraming(this.container.clientWidth, this.container.clientHeight, span, detail,
       this.container.closest<HTMLElement>("[data-layout]")?.dataset.layout === "compact");
@@ -1724,7 +1707,7 @@ export class ArchiveScene {
     this.camera.fov = THREE.MathUtils.lerp(
       this.camera.fov,
       THREE.MathUtils.radToDeg(
-        2 * Math.atan((cinematic ? openingSpan(THREE.MathUtils.lerp(span, 5.9, detail)) : framing.span) / (2 * distance)),
+        2 * Math.atan((cinematic ? openingSpan(span) : framing.span) / (2 * distance)),
       ),
       cameraBlend,
     );
@@ -1855,14 +1838,32 @@ export class ArchiveScene {
       });
       if (!state.end()) { this.reusedFrames++; return; }
     }
-    if(this.folderFrameSync){this.folderPaintPending=true;this.folderFrameSequence++;return;}
+    if(this.folderFrameSync){
+      this.folderFrames??=new FolderFramePipeline(this.renderer,this.scene,this.camera,this.model,{colorDepth:false});
+      const projection=new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse).multiply(this.model.matrixWorld);
+      const accepted=this.folderFrames.submit(target=>this.paintScene(target),{projection,height:this.heightScale,tilt:{...this.motionTilt}},this.folderEpoch);
+      if(!accepted){this.pipelineBackpressure++;state.invalidate();}
+      return;
+    }
     this.paintScene();
   }
-  private paintScene() {
+  private paintScene(target?:THREE.WebGLRenderTarget) {
     this.renderedFrames++;
     this.renderer.shadowMap.needsUpdate = true;
-    if (this.superPerformance) this.renderer.render(this.scene, this.camera);
-    else this.composer.render();
+    if(!target){
+      if(this.superPerformance)this.renderer.render(this.scene,this.camera);else this.composer.render();
+      return;
+    }
+    const previous=this.renderer.getRenderTarget(),toScreen=this.composer.renderToScreen;
+    try{
+      // Capture the existing final framebuffer on the GPU. This preserves its
+      // MSAA, transparency, tone mapping and background exactly. Before this RAF
+      // ends, blitFolderFrame restores the latest complete color/mask pair.
+      this.renderer.initRenderTarget(target);this.renderer.setRenderTarget(null);
+      this.composer.renderToScreen=true;
+      if(this.superPerformance)this.renderer.render(this.scene,this.camera);else this.composer.render();
+      this.renderer.copyFramebufferToTexture(target.texture);
+    }finally{this.composer.renderToScreen=toScreen;this.renderer.setRenderTarget(previous);}
   }
   projectCard(x: number, y: number, z = .255) {
     this.model.updateMatrixWorld(true);
@@ -1887,8 +1888,11 @@ export class ArchiveScene {
     return {
       workHeightScale: this.heightScale,
       deviceTilt: {...this.motionTilt},
-      folderMask: this.faceDepth?.stats,
+      folderMask: this.folderFrameSync?this.folderFrames?.maskStats:this.faceDepth?.stats,
       folderFrame: {pending:this.pendingFolderFrame,presented:this.folderPresentedSequence,synchronized:this.folderFrameSync},
+      folderPipeline: this.folderFrames?.stats,
+      simulationFrames:this.simulationFrames,
+      pipelineBackpressure:this.pipelineBackpressure,
       decryption: { ...this.decryption.frame, clarity: this.decryption.clarity },
       topLeft: project(-2.5, 3.7, 0),
       topRight: project(2.5, 3.7, 0),

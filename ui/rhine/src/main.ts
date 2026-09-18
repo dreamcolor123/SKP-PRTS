@@ -55,7 +55,8 @@ let wallpaperEffects: WallpaperEffects | undefined;
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
-import { logo, brandHeading } from "./brand";
+import { logoSvg, brandHeading } from "./brand";
+import { UserLogo } from "./user-logo";
 
 $("#stage").innerHTML = `
   <div id="three-scene" class="three-scene"></div>
@@ -70,10 +71,10 @@ $("#stage").innerHTML = `
   <button id="skip" class="skip" data-action="skip">ENTER SYSTEM <span>↗</span></button>
   <section id="boot" class="boot" aria-label="系统启动">
     <div class="access-text">ACCESS</div>
-    <div class="boot-logo">${logo}</div>
+    <div class="boot-logo">${logoSvg("sk-boot")}</div>
     <div class="auth-status"><span>▪</span> <span id="auth-message"></span><i></i></div>
     <div class="scan"><svg viewBox="0 0 1920 1080" aria-hidden="true"><g fill="none" stroke="#080a08" stroke-width="2" stroke-linecap="round"><path/><path stroke="#fff"/><path/><path/><path/><path/><circle class="orbit-dot" r="8" fill="#ed821b" stroke="none"/><circle class="orbit-dot" r="8" fill="#ed821b" stroke="none"/><circle class="scan-core" cx="960" cy="540" r="5" fill="#080a08" stroke="none"/></g></svg><span>SESSION INITIALIZED</span></div>
-    <div class="welcome"><div class="welcome-panel"></div><div class="welcome-heading">WELCOME TO</div><div class="welcome-company"><strong>SKROOT PRO.</strong><strong class="welcome-highlight" aria-hidden="true">SKROOT PRO.</strong></div><div class="welcome-database">INTERNAL DATABASE</div><div class="welcome-logo">${logo}</div></div>
+    <div class="welcome"><div class="welcome-panel"></div><div class="welcome-heading">WELCOME TO</div><div class="welcome-company"><strong>SKROOT PRO.</strong><strong class="welcome-highlight" aria-hidden="true">SKROOT PRO.</strong></div><div class="welcome-database">INTERNAL DATABASE</div><div class="welcome-logo">${logoSvg("sk-welcome")}</div></div>
   </section>
   <svg id="inspection-marks" viewBox="0 0 1920 1080" aria-hidden="true"><path id="inspection-lines"/><g id="inspection-corners"></g><circle id="inspection-point" r="1.8"/></svg>
   <div id="inspection-text" aria-hidden="true">CONFIDENTIALITY:<strong>GENERAL BUSINESS USE</strong></div>
@@ -95,7 +96,7 @@ $("#stage").innerHTML = `
   <footer class="system-footer"><span><i class="status-light"></i> <b id="skp-status">SESSION CONNECTED</b>${isWallpaper ? '<button type="button" class="three-toggle" data-action="toggle-three" aria-pressed="true" title="卸载三维模型，保留 2D 界面">3D 开启</button>' : ''}</span><span>SKP SESSION <i>／</i> <span id="clock">00:00:00</span></span><button data-action="replay" title="重播启动流程">REINITIALIZE ↗</button></footer>
   <div id="pwa-update-notice" class="pwa-update-notice" role="status" hidden><span>新版本已就绪</span><button data-pwa-action="update">更新并重启 ↻</button></div>
   <div id="modal-root"></div><div id="toast" class="toast" role="status"></div>
-  <div id="loading" class="loading"><div class="loading-mark">${logo}</div><span>CONNECTING TO INTERNAL DATABASE</span><i></i></div>
+  <div id="loading" class="loading"><div class="loading-mark">${logoSvg("sk-loading")}</div><span>CONNECTING TO INTERNAL DATABASE</span><i></i></div>
 `;
 
 $("#boot-background").insertAdjacentHTML(
@@ -103,6 +104,17 @@ $("#boot-background").insertAdjacentHTML(
   '<div class="boot-white"></div>',
 );
 const bootSequence = new BootSequence($("#stage"));
+const loadingLogo = new UserLogo(document.querySelector<SVGSVGElement>(".loading-mark svg")!);
+let loadingLogoTime=0,loadingLogoLast:number|undefined;
+function animateLoadingLogo(now:number) {
+  if(!loadingLogo.element.isConnected||loadingLogo.element.closest('.loaded'))return;
+  const active=!document.hidden&&skpHost.presentation.active;
+  if(active&&loadingLogoLast!==undefined)loadingLogoTime+=Math.max(0,now-loadingLogoLast)/1000;
+  loadingLogoLast=active?now:undefined;
+  loadingLogo.update(loadingLogoTime,prefs.reduced);
+  requestAnimationFrame(animateLoadingLogo);
+}
+requestAnimationFrame(animateLoadingLogo);
 $("#viewport").insertAdjacentHTML("beforeend", '<button class="mobile-entry" data-action="skip">进入管理器 <span>→</span></button>');
 $("#viewport").insertAdjacentHTML("beforeend", `<nav class="workspace-navigation" aria-label="主要分区" hidden>${sections.map((section,index)=>`<button data-section="${section.id}" aria-label="${section.label}" aria-current="false"><i>${String(index+1).padStart(2,"0")}</i><span>${section.label}</span></button>`).join("")}</nav>`);
 const floatingNavigation = new FloatingNavigation($(".workspace-navigation"));
@@ -163,11 +175,11 @@ const prefs = {
   soundVolume: .55,
   musicVolume: .5,
   quality: true,
-  superPerformance: false,
+  superPerformance: true,
   ...storedPrefs,
   reduced: userReduced || matchMedia("(prefers-reduced-motion: reduce)").matches,
   rendering: normalizeQuality(storedPrefs.rendering, storedPrefs.quality !== false),
-  colorTheme: storedPrefs.colorTheme === "dark" ? "dark" : "light",
+  colorTheme: storedPrefs.colorTheme === "light" ? "light" : "dark",
 };
 paintTheme(prefs.colorTheme === "dark" ? 1 : 0);
 const rollingMotion = {
@@ -404,6 +416,7 @@ function applyPresentation(value: Presentation) {
 }
 function syncHostPause() {
   const pause = document.hidden || !skpHost.presentation.active;
+  if(pause)loadingLogoLast=undefined;
   if (pause && pausedAt === undefined) {
     pausedAt = performance.now();
     pausedAnimations = document.getAnimations().filter(animation => animation.playState === "running");
@@ -411,6 +424,7 @@ function syncHostPause() {
     publishPresentation();
   } else if (!pause && pausedAt !== undefined) {
     if (started && mode === "boot") bootStart += (performance.now() - pausedAt) / 1000;
+    scene?.resumeClock(performance.now()/1000);
     pausedAt = undefined;
     pausedAnimations.forEach(animation => { if (animation.playState === "paused") animation.play(); });
     pausedAnimations = [];
@@ -748,7 +762,7 @@ function toggleSaved() {
   button.setAttribute("aria-pressed", String(added));
   bookmarkFeedback?.cancel();
   if (!prefs.reduced) bookmarkFeedback = button.animate(
-    [{ backgroundColor: "#67634c" }, { backgroundColor: "#252820" }],
+    [{ backgroundColor: "#e5d8f7" }, { backgroundColor: "#d8c5f2" }],
     { duration: 220, easing: "ease-out" },
   );
   audio.play("confirm");
@@ -1188,7 +1202,7 @@ function bootFrame(t: number) {
     return undefined;
   }
   audio.updateBoot(t, frozenTime !== null);
-  const motion = bootSequence.update(t);
+  const motion = bootSequence.update(t,prefs.reduced);
   if (workbench?.enabled && frozenTime === null) {
     const end = openingShowsDetail(wallpaperHost()?.properties.openingdetail?.value, true) ? 35 : ARRAY_OPENING_END;
     if (t > end - .35) $(".powered").style.opacity = String(1 - ease((t - end + .35) / .35));
@@ -1257,7 +1271,7 @@ function frame(ms: number) {
   scene?.setFolderFrameSync(facePanel.needsDepthFrame && started && mode!=="boot" && !visualLab && !viewer?.isOpen && !modal);
   // Present the completed pair before preparing the next one, allowing one
   // matched canvas/mask per refresh without synchronously waiting for the GPU.
-  if(scene?.folderFrameSynchronized&&facePanel.depthFrameReady)facePanel.update(scene,true,time);
+  if(scene?.folderFrameSynchronized&&(facePanel.depthFrameReady||scene.pendingFolderFrame!==undefined))facePanel.update(scene,true,time);
   if (!viewer?.isOpen && (!cinema || cinema.time >= 21.9)) scene?.update(time, cinema);
   viewer?.update(time);
   if (threeState === "closing" && scene?.presentationHidden) releaseThree();
@@ -1274,6 +1288,7 @@ function frame(ms: number) {
     }
   }
   facePanel.update(scene, started && mode !== "boot" && !browsingArray && !visualLab && !viewer?.isOpen, time);
+  scene?.blitFolderFrame();
   const tilt = tiltEnabled ? scene?.deviceTilt ?? {x:0,y:0} : {x:0,y:0};
   floatingNavigation.setMotion(tilt.x,tilt.y,prefs.reduced);
   $(".brand").style.translate=`${tilt.x*.3}px ${tilt.y*.25}px`;
@@ -1592,7 +1607,7 @@ Object.assign(window, {
     visualLab: () => setVisualLab(true),
     workspace: (section: SectionId) => navigateSection(section),
     workspaceState,
-    workspaceQuad: () => scene ? [[-2.28,3.4],[2.28,3.4],[2.28,.18],[-2.28,.18]].map(([x,y])=>scene!.projectCard(x,y)) : null,
+    workspaceQuad: () => scene ? [[-2.28,3.4],[2.28,3.4],[2.28,.18],[-2.28,.18]].map(([x,y])=>scene!.projectFolderCard(x,y)) : null,
     browse: browseArray,
     snapshot: applySnapshot,
     presentation: applyPresentation,

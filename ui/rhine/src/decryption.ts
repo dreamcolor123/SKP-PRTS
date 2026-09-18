@@ -2,7 +2,8 @@
 // seconds, unlike the camera's historical (original minus five) time convention.
 export const DECRYPTION_START = 34.12;
 export const DECRYPTION_END = 39.56;
-const INTERACTIVE_RATE = 1.5;
+export const INTERACTIVE_CLEAR_DURATION = 1;
+const INTERACTIVE_RATE = (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_CLEAR_DURATION;
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 const smooth = (value: number) => {
   const x = clamp(value);
@@ -121,15 +122,18 @@ export class DecryptionController {
   clarity = 0;
   private active = false;
   private elapsed: number | null = null;
+  private startClarity = 0;
   frame: DecryptionFrame = decryptionFrame(-1);
 
   enter(alreadyClear = false) {
-    if (this.active) return;
+    if (this.active) return false;
     this.active = true;
+    this.startClarity = this.clarity;
     this.elapsed = alreadyClear
       ? (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_RATE
       : null;
     if (alreadyClear) this.finish();
+    return true;
   }
   leave() {
     this.active = false;
@@ -164,22 +168,20 @@ export class DecryptionController {
       return;
     }
     if (this.elapsed === null && ready) this.elapsed = 0;
-    else if (this.elapsed !== null)
+    if (this.elapsed !== null)
       this.elapsed = Math.min(
         this.elapsed + Math.max(0, dt),
         (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_RATE,
       );
     if (this.elapsed !== null) {
+      if(this.elapsed >= INTERACTIVE_CLEAR_DURATION - 1e-9){this.finish();return;}
       this.frame = decryptionFrame(
         DECRYPTION_START + this.elapsed * INTERACTIVE_RATE,
       );
-      // Re-entry during refrosting starts from the displayed material state.
-      this.clarity =
-        this.frame.clarity > this.clarity
-          ? this.frame.clarity
-          : this.frame.phase === "clear"
-            ? 1
-            : this.clarity * Math.exp(-Math.max(0, dt) * 9);
+      // Daily interaction clears throughout its one-second entry, without
+      // waiting for the original cinematic scan/retract phase to finish.
+      this.clarity = clamp(this.startClarity + (1 - this.startClarity) * smooth(this.elapsed / INTERACTIVE_CLEAR_DURATION));
+      this.frame.clarity = this.clarity;
     }
   }
 }

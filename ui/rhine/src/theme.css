@@ -1,3 +1,13 @@
+:root {
+  --control-fill: #d8c5f2;
+  --control-fill-hover: #e5d8f7;
+  --control-ink: #21182e;
+  --control-accent: #71509a;
+  --control-danger: #9a3737;
+  --control-danger-fill: #a23843;
+  --control-danger-ink: #ffffff;
+}
+[data-dark-surface="true"] { --control-accent: #ceb8ed; --control-danger: #f0a0a8; }
 .theme-settings { padding: 16px 0; border-bottom: 1px solid #bdb8ad; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .theme-settings strong { display: block; font-size: 14px; }
 .theme-settings span { display: block; margin-top: 6px; font-size: 12px; color: #77756d; }
@@ -61,3 +71,14 @@
 [data-dark-surface="true"] .archive-atmosphere::before {
   background: linear-gradient(180deg, rgba(var(--theme-paper-rgb), .82), transparent 36%), linear-gradient(0deg, rgba(var(--theme-paper-rgb), .84), transparent 25%), radial-gradient(ellipse at 48% 48%, transparent 42%, rgba(var(--theme-paper-rgb), .48) 90%);
 }
+
+/* Filled controls share the logo's pale accent without tinting the glass scene. */
+:root :is(.theme-choices button[aria-pressed="true"], .wb-settings button[aria-pressed="true"], .wb-task[aria-pressed="true"] .wb-check, .wb-timer-buttons button:first-child, .category-filters button.active, .viewer-surface button[aria-pressed="true"], .viewer-actions button[aria-pressed="true"], .solid-button) {
+  background: var(--control-fill);
+  color: var(--control-ink);
+  border-color: var(--control-fill);
+}
+:root .solid-button:hover { background: var(--control-fill-hover); color: var(--control-ink); }
+:root .solid-button > span { color: inherit; }
+:root .settings-list input:checked + .toggle { background: var(--control-fill); }
+:root .settings-list input:checked + .toggle::after { background: var(--control-ink); }

@@ -1,19 +1,20 @@
 /* Original stage geometry stays authoritative; these are SKP-only controls. */
 .skp-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 24px 0; }
 .skp-actions button { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 13px 17px; border: 1px solid currentColor; text-align: left; font-size: 15px; transition: background .18s,color .18s; }
-.skp-actions button:hover,.skp-actions button:focus-visible { background: #252820; color: #f1efea; }
+.skp-actions button:hover,.skp-actions button:focus-visible { background: var(--control-fill); color: var(--control-ink); }
 .skp-actions button:active { translate: 0 1px; }
 .skp-actions button:disabled { opacity: .38; }
-.skp-actions button.destructive { border-style: dashed; }
+.skp-actions button.destructive { border-style: dashed; color: var(--control-danger); }
+.skp-actions button.destructive:hover,.skp-actions button.destructive:focus-visible { background: var(--control-danger-fill); color: var(--control-danger-ink); }
 .skp-actions b { font-weight: 400; }
 .skp-progress { position: relative; height: 24px; border-bottom: 2px solid #9d988a; margin-bottom: 24px; }
-.skp-progress i { position: absolute; inset: 0; background: #cecd9a; transform-origin: left; transition: transform .25s linear; }
-.skp-progress span { position: relative; display: block; text-align: right; font: 12px monospace; }
+.skp-progress i { position: absolute; inset: 0; background: var(--control-fill); transform-origin: left; transition: transform .25s linear; }
+.skp-progress span { position: relative; display: block; width: fit-content; margin-left: auto; padding-left: 5px; text-align: right; font: 12px monospace; color: var(--theme-ink); background: var(--theme-panel); }
 .skp-lab-settings { margin: 28px 0; border-top: 1px solid #aaa69d; padding-top: 25px; }
 .skp-lab-settings p { font-size: 14px; }
 .skp-lab-controls { display: none; position: absolute; left: 5%; right: 5%; bottom: 90px; z-index: 15; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
-.skp-lab-controls button { min-height: 44px; padding: 10px 15px; border: 1px solid #6e6e60; background: #e8e5e1dc; }
-.skp-lab-controls button[aria-pressed="true"] { color: #f4f3ed; background: #252820; }
+.skp-lab-controls button { min-height: 44px; padding: 10px 15px; border: 1px solid var(--theme-line); background: rgba(var(--theme-panel-rgb), .86); color: var(--theme-ink); }
+.skp-lab-controls button[aria-pressed="true"] { color: var(--control-ink); background: var(--control-fill); }
 .skp-lab-controls > span { font-size: 11px; letter-spacing: .16em; margin-right: 10px; }
 [data-visual-lab="true"] .skp-lab-controls { display: flex; }
 [data-visual-lab="true"] #archive-ui { opacity: 0; pointer-events: none; }
@@ -25,6 +26,7 @@
 
 .workspace-navigation { position:absolute; z-index:30; bottom:0; left:0; right:0; height:72px; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); border-top:1px solid var(--theme-line); background:rgba(var(--theme-panel-rgb),.95); padding:4px 8px max(4px,env(safe-area-inset-bottom)); }
 .workspace-navigation[hidden] { display:none; }
+[data-mode="boot"][data-boot="inspect"] .archive-ui { transition:opacity .35s; }
 .workspace-navigation button { min-width:0; min-height:48px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:14px; letter-spacing:0; position:relative; }
 .workspace-navigation button i { font-style:normal; font-size:10px; color:var(--theme-muted); }
 .workspace-navigation button[aria-current=true] { background:rgba(var(--theme-ink-rgb),.07); font-weight:700; }

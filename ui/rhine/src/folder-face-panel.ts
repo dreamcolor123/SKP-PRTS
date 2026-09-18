@@ -7,8 +7,11 @@ import type { FolderDepthSample } from "./folder-depth-mask";
 
 interface FaceScene {
   projectCard(x:number,y:number,z?:number):number[];
+  projectFolderCard?(x:number,y:number,z?:number):number[];
   workHeightScale?:number;
   deviceTilt?:{x:number;y:number};
+  folderHeightScale?:number;
+  folderDeviceTilt?:{x:number;y:number};
   folderMask?():FolderDepthSample|Promise<FolderDepthSample>;
   pendingFolderFrame?:number;
   folderFrameSynchronized?:boolean;
@@ -102,6 +105,9 @@ export class FolderFacePanel {
   private maskSource?: object;
   private readonly numericClip = CSS.supports("clip-path", 'path("M0 0H1V1H0Z")');
   private maskRects?: {x:number;y:number;width:number;height:number}[];
+  private paintedMaskRects?:typeof this.maskRects;
+  private clipWidth=0;
+  private clipHeight=0;
   private preparedMask?: {frame:number;epoch:number;value:PreparedMask};
   private maskRetries=0;
   private pendingVisual=false;
@@ -376,7 +382,7 @@ export class FolderFacePanel {
     }
   }
 
-  update(scene: FaceScene | undefined, active = true, _dt?: number) {
+  update(scene: FaceScene | undefined, active = true, _dt?: number):void {
     const now = performance.now();
     const elapsed = Math.min(100, Math.max(0, now - (this.lastTime || now)));
     this.lastTime = now;
@@ -408,8 +414,15 @@ export class FolderFacePanel {
               this.element.style.maskImage="linear-gradient(transparent,transparent)";
               this.maskPixels=new Uint8ClampedArray(this.maskWidth*this.maskHeight*4);
             }
-            this.maskPending=true;const epoch=this.maskEpoch;
-            Promise.resolve().then(()=>scene.folderMask!()).then(sample=>this.prepareMask(sample)).then(value=>{
+            const epoch=this.maskEpoch;
+            const sample=scene.folderMask();
+            const prepared=sample instanceof Promise?sample.then(value=>this.prepareMask(value)):this.prepareMask(sample);
+            if(!(prepared instanceof Promise)){
+              this.preparedMask={frame,epoch,value:prepared};
+              return this.update(scene,active,_dt);
+            }
+            this.maskPending=true;
+            prepared.then(value=>{
               if(epoch!==this.maskEpoch||frame!==scene.pendingFolderFrame){value.discard();return;}
               this.preparedMask={frame,epoch,value};
             }).catch(()=>{
@@ -421,13 +434,13 @@ export class FolderFacePanel {
           return;
         }
       }
-      this.heightScale = scene.workHeightScale ?? WORKING_HEIGHT;
+      this.heightScale = scene.folderHeightScale ?? scene.workHeightScale ?? WORKING_HEIGHT;
       const stage = this.viewport.querySelector<HTMLElement>("#stage");
       const stageRect = stage?.getBoundingClientRect();
       const viewportRect = this.viewport.getBoundingClientRect();
       const scale = stage && stageRect ? stageRect.width / stage.offsetWidth : 1;
       const corners = [[-2.28, 3.4], [2.28, 3.4], [2.28, .18], [-2.28, .18]].map(([x, y]) => {
-        const projected = scene.projectCard(x, y);
+        const projected = scene.projectFolderCard?.(x,y)??scene.projectCard(x,y);
         return { x: projected[0] * scale + (stageRect?.left ?? viewportRect.left) - viewportRect.left,
           y: projected[1] * scale + (stageRect?.top ?? viewportRect.top) - viewportRect.top };
       });
@@ -473,7 +486,7 @@ export class FolderFacePanel {
     }
     if (!this.shown && this.progress <= 0) this.element.hidden = true;
   }
-  private async prepareMask(sample:FolderDepthSample):Promise<PreparedMask> {
+  private prepareMask(sample:FolderDepthSample):PreparedMask|Promise<PreparedMask> {
     const {width,height,pixels,quad}=sample;
     const mw=this.maskWidth,mh=this.maskHeight;
     const solid=():PreparedMask=>({commit:()=>{this.element.style.maskImage="none";this.maskPixels=undefined;this.maskRects=undefined;this.element.style.clipPath="none";this.maskHash=-1;this.element.dataset.visibleFraction="1";},discard:()=>{}});
@@ -515,6 +528,10 @@ export class FolderFacePanel {
         this.element.dataset.visibleFraction=String(visible/(mw*mh));
       },discard:()=>{}};
     }
+    return this.encodeMask(output,hash,visible);
+  }
+  private async encodeMask(output:Uint8ClampedArray<ArrayBuffer>,hash:number,visible:number):Promise<PreparedMask> {
+    const mw=this.maskWidth,mh=this.maskHeight;
     this.maskCanvas.width=mw;this.maskCanvas.height=mh;
     this.maskCanvas.getContext("2d")!.putImageData(new ImageData(output,mw,mh),0,0);
     const blob=await new Promise<Blob|null>(resolve=>this.maskCanvas.toBlob(resolve,"image/png"));
@@ -565,7 +582,8 @@ export class FolderFacePanel {
     const quad = this.onModel && this.anchored ? this.anchored : destination;
     this.surfaceMatrix = hudQuadMatrix(w, frameHeight, quad);
     this.element.style.transform = `matrix3d(${this.surfaceMatrix.join(",")})`;
-    if(this.maskRects){
+    if(this.maskRects&&(this.paintedMaskRects!==this.maskRects||this.clipWidth!==w||this.clipHeight!==frameHeight)){
+      this.paintedMaskRects=this.maskRects;this.clipWidth=w;this.clipHeight=frameHeight;
       const sx=w/this.maskWidth,sy=frameHeight/this.maskHeight;
       const n=(value:number)=>Math.round(value*1000)/1000;
       const path=this.maskRects.map(r=>`M${n(r.x*sx)} ${n(r.y*sy)}h${n(r.width*sx)}v${n(r.height*sy)}h${n(-r.width*sx)}Z`).join("");
@@ -574,7 +592,7 @@ export class FolderFacePanel {
     this.element.style.opacity = String(this.progress === 0 && !this.shown ? 0 : amount);
     this.element.dataset.expanded = String(this.progress === 1);
   }
-  private paintLayers(scene:{projectCard(x:number,y:number,z?:number):number[];deviceTilt?:{x:number;y:number}}) {
+  private paintLayers(scene:FaceScene) {
     if(!this.surfaceMatrix.length)return;
     if(this.layerLayoutDirty) {
       this.layerLayoutDirty=false;
@@ -591,7 +609,7 @@ export class FolderFacePanel {
       if(!layer.width||!layer.height)continue;
       const corners=[[0,0],[layer.width,0],[layer.width,layer.height],[0,layer.height]].map(([x,y])=>{
         const u=(layer.x+x)/this.frameWidth, v=(layer.y+y)/this.frameHeight;
-        const point=scene.projectCard(-2.28+u*FACE_WIDTH,3.4-v*FACE_HEIGHT,layer.depth);
+        const point=scene.projectFolderCard?.(-2.28+u*FACE_WIDTH,3.4-v*FACE_HEIGHT,layer.depth)??scene.projectCard(-2.28+u*FACE_WIDTH,3.4-v*FACE_HEIGHT,layer.depth);
         const local=inverse.transformPoint({x:point[0]*scale+stageRect.left-viewportRect.left,y:point[1]*scale+stageRect.top-viewportRect.top});
         return {x:local.x/local.w-layer.x,y:local.y/local.w-layer.y};
       });
@@ -599,7 +617,7 @@ export class FolderFacePanel {
       layer.node.style.transform=`matrix3d(${hudQuadMatrix(layer.width,layer.height,corners).join(',')})`;
       layer.node.dataset.depth=String(layer.depth);
     }
-    const tilt=this.reduced?{x:0,y:0}:scene.deviceTilt??{x:0,y:0};
+    const tilt=this.reduced?{x:0,y:0}:scene.folderDeviceTilt??scene.deviceTilt??{x:0,y:0};
     this.element.style.setProperty('--control-float-x',`${tilt.x*1.8}px`);
     this.element.style.setProperty('--control-float-y',`${tilt.y*1.5}px`);
   }

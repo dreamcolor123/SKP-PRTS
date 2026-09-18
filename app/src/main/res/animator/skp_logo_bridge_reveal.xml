@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android" android:ordering="together"><objectAnimator android:propertyName="pathData" android:valueFrom="M61 30H61V106H61Z" android:valueTo="M61 30H227V106H61Z" android:valueType="pathType" android:startOffset="276" android:duration="874" android:interpolator="@interpolator/skp_logo_assemble"/></set>

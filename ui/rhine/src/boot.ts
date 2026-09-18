@@ -1,5 +1,6 @@
 import { bootMotion } from "./boot-motion";
-import { bootMarkContour, brandWordmark, kernelNodePath, terminalNodePath } from "./brand";
+import { brandWordmark } from "./brand";
+import { UserLogo } from "./user-logo";
 import { themeAmount } from "./theme-ui";
 import { BootLettering } from "./boot-lettering";
 
@@ -13,10 +14,8 @@ const arc = (r: number, start: number, sweep: number, x = 960, y = 540) => {
 
 export class BootSequence {
   private nodes: Map<string, HTMLElement> = new Map();
-  private contour: SVGPathElement;
-  private letters: SVGPathElement[];
-  private plus: SVGPathElement;
-  private minus: SVGPathElement;
+  private mark: UserLogo;
+  private welcomeMark: UserLogo;
   private brandLines: HTMLElement[];
   private scanPaths: SVGPathElement[];
   private orbitDots: SVGCircleElement[];
@@ -48,24 +47,8 @@ export class BootSequence {
       ".boot-background svg",
       ".boot-white",
     ].forEach((s) => this.nodes.set(s, stage.querySelector<HTMLElement>(s)!));
-    const mark = stage.querySelector<SVGSVGElement>(".boot-logo svg")!;
-    const original = mark.querySelector<SVGPathElement>(".sk-contour")!;
-    this.contour = original;
-    this.contour.setAttribute("d", bootMarkContour);
-    this.contour.setAttribute("pathLength", "1");
-    const symbols = mark.querySelector(".sk-terminals")!;
-    this.plus = document.createElementNS(ns, "path");
-    this.plus.setAttribute("d", kernelNodePath);
-    this.minus = document.createElementNS(ns, "path");
-    this.minus.setAttribute("d", terminalNodePath);
-    [this.plus, this.minus].forEach((p) => {
-      p.setAttribute("stroke", "currentColor");
-      p.setAttribute("stroke-width", "5");
-      p.setAttribute("fill", "none");
-      mark.insertBefore(p, symbols);
-    });
-    symbols.remove();
-    this.letters = Array.from(mark.querySelectorAll<SVGPathElement>("[data-brand-letter]"));
+    this.mark = new UserLogo(stage.querySelector<SVGSVGElement>(".boot-logo svg")!);
+    this.welcomeMark = new UserLogo(stage.querySelector<SVGSVGElement>(".welcome-logo svg")!);
     this.brandLines = Array.from(
       stage.querySelector(".brand")!.children,
     ) as HTMLElement[];
@@ -125,36 +108,16 @@ export class BootSequence {
   private opacity(selector: string, value: number | boolean) {
     this.el(selector).style.opacity = String(Number(value));
   }
-  update(time: number) {
+  update(time: number, reduced = false) {
     const s = bootMotion(time),
       t = s.t;
     this.stage.dataset.bootFrame = String(s.f);
     this.accessLettering.setText(s.access);
     this.opacity(".access-text", s.accessOpacity);
     this.opacity(".boot-logo", s.logoOpacity);
-    this.el(".boot-logo").style.transform =
-      `translate(${s.logo.offsetX}px, 1px)`;
-    this.contour.style.strokeDasharray = `${s.logo.length} ${1 - s.logo.length}`;
-    this.contour.style.strokeDashoffset = String(-s.logo.start);
-    this.contour.setAttribute("stroke-width", String(s.logo.strokeWidth));
-    // Retain authored paths and reveal them at the original letter cut points.
-    this.letters.forEach((letter) => {
-      letter.style.visibility = Number(letter.dataset.brandLetter) < s.logoLetters.length ? "visible" : "hidden";
-    });
-    this.plus.style.opacity = this.minus.style.opacity =
-      s.logo.symbolScale > 0 ? "1" : "0";
-    this.plus.setAttribute(
-      "transform",
-      `translate(${s.logo.plusX} 55) rotate(${s.logo.plusAngle}) scale(${s.logo.symbolScale}) translate(-69 -55)`,
-    );
-    this.minus.setAttribute(
-      "d",
-      terminalNodePath,
-    );
-    this.minus.setAttribute(
-      "transform",
-      `translate(${s.logo.minusX + 23} 78) scale(${s.logo.symbolScale * s.logo.minusWidth / 46} ${s.logo.symbolScale})`,
-    );
+    this.el(".boot-logo").style.transform = "translate(0, 1px)";
+    this.mark.update(Math.max(0,t-9.16),reduced);
+    this.welcomeMark.update(Math.max(0,t-23.52),reduced);
     this.opacity(".auth-status", s.authOpacity);
     this.authLettering.setText(s.auth);
     this.opacity(".brand", 1);
@@ -262,6 +225,7 @@ export class BootSequence {
     this.el(".scan > span").style.fontSize = `${s.scanFont}px`;
   }
   reset() {
+    this.mark.update(1.3,true);this.welcomeMark.update(1.3,true);
     // Restore shared corner branding when skipping at any intermediate frame.
     [".brand", ".powered"].forEach((key) =>
       this.el(key).removeAttribute("style"),

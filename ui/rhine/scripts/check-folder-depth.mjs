@@ -120,6 +120,11 @@ const bundle = await build({
         await check('front-half');
         blocker.position.z=-1;await check('behind-empty');
         blocker.position.set(50,1.79,1);await check('offscreen-empty');
+        blocker.visible=false;
+        const floorGeometry=new THREE.PlaneGeometry(100,100),floor=new THREE.Mesh(floorGeometry,material);
+        floor.rotation.x=-Math.PI/2;floor.position.y=-2;scene.add(floor);
+        await check('floor-below-camera-and-face');
+        scene.remove(floor);floorGeometry.dispose();blocker.visible=true;
         const instanceCount=201,batch=new THREE.InstancedMesh(blockerGeometry,material,instanceCount),matrix=new THREE.Matrix4();
         for(let index=0;index<instanceCount;index++)batch.setMatrixAt(index,matrix.makeTranslation(index===0?-1.14:30+index*3,1.79,1));
         batch.instanceMatrix.needsUpdate=true;scene.add(batch);blocker.visible=false;
@@ -198,7 +203,7 @@ try {
     const front = named['front-half'].sync;
     assert.ok(Math.abs(front.fraction - .5) < .03, JSON.stringify(front));
     assert.equal(front.left, 0);assert.equal(front.right, 255);
-    for (const name of ['behind-empty', 'offscreen-empty']) {
+    for (const name of ['behind-empty', 'offscreen-empty', 'floor-below-camera-and-face']) {
       assert.equal(named[name].sync.fraction, 1);
       assert.equal(named[name].sync.solid, true);
       assert.equal(named[name].stats.drawn, 0);

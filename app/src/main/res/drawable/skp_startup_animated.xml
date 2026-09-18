@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/skp_startup_mark">
-    <target android:name="sk_trace" android:animation="@animator/skp_startup_trace" />
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/skp_startup_motion">
+  <target android:name="sk_s_entry" android:animation="@animator/skp_logo_s_entry"/>
+  <target android:name="sk_s" android:animation="@animator/skp_logo_s_alpha"/>
+  <target android:name="sk_stem_entry" android:animation="@animator/skp_logo_stem_entry"/>
+  <target android:name="sk_stem" android:animation="@animator/skp_logo_stem_alpha"/>
+  <target android:name="sk_bridge_reveal" android:animation="@animator/skp_logo_bridge_reveal"/>
+  <target android:name="sk_leg_entry" android:animation="@animator/skp_logo_leg_entry"/>
+  <target android:name="sk_leg" android:animation="@animator/skp_logo_leg_alpha"/>
 </animated-vector>

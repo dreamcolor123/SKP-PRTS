@@ -2,7 +2,8 @@ import * as THREE from "three";
 
 const surfaces: Record<string, string> = {
   Frosted_Polymer: "#626b70", Ivory_Edges: "#687277", Optical_Diffuser: "#192226",
-  Titanium_Fasteners: "#b1b9bb", Index_Inlay: "#c6a36b", Printed_Label: "#303a3e",
+  Titanium_Fasteners: "#b1b9bb", Index_Inlay: "#cdb6ed", Printed_Label: "#303a3e",
+  Amber_Optical_Inlay: "#d0bbed", Champagne_Index: "#c5b0df", Optical_Film: "#c7bbd9",
   Subsurface_Optics: "#939e9f", Optical_Edges: "#bbc3bc", Carbon_Ink: "#b6bdb8",
 };
 /** Extend existing optical shaders; one float per instance avoids new meshes or passes. */
@@ -10,7 +11,7 @@ export function themeMaterial(material: THREE.Material, name: string, instanced 
   const amount = { value: 0 };
   const before = material.onBeforeCompile;
   const cache = material.customProgramCacheKey.bind(material)();
-  const color = new THREE.Color(surfaces[name] ?? (name.includes("Orange") ? "#bb8850" : "#969f9f"));
+  const color = new THREE.Color(surfaces[name] ?? (name.includes("Orange") ? "#cdb6ed" : "#969f9f"));
   material.onBeforeCompile = (shader, renderer) => {
     before.call(material, shader, renderer);
     shader.uniforms.rhineTheme = amount;
@@ -26,7 +27,7 @@ export function themeMaterial(material: THREE.Material, name: string, instanced 
     const printed = name === "Printed_Canvas";
     const anchor = printed ? "#include <opaque_fragment>" : "#include <roughnessmap_fragment>";
     const dark = printed
-      ? "mix(vec3(0.023, 0.032, 0.037), vec3(0.78, 0.78, 0.71), 1.0 - smoothstep(0.12, 0.65, dot(diffuseColor.rgb, vec3(.2126,.7152,.0722))))"
+      ? "mix(mix(vec3(0.023, 0.032, 0.037), vec3(0.78, 0.78, 0.71), 1.0 - smoothstep(0.12, 0.65, dot(diffuseColor.rgb, vec3(.2126,.7152,.0722)))), diffuseColor.rgb, smoothstep(.02, .08, diffuseColor.b - max(diffuseColor.r, diffuseColor.g)))"
       : name === "Frosted_Polymer" && !instanced
         ? "mix(rhineDarkSurface, vec3(0.92, 0.96, 0.97), glassRevealAtHeight(archiveClarity, vArchiveHeight))"
         : name === "Index_Inlay" ? "mix(rhineDarkSurface, vec3(0.030, 0.042, 0.048), rhineSubduedIndex)" : "rhineDarkSurface";
@@ -39,7 +40,7 @@ export function themeMaterial(material: THREE.Material, name: string, instanced 
 
 type Baseline = { background: THREE.Color; fog?: THREE.Color; intensity: number; exposure: number; lights: { light: THREE.Light; intensity: number }[]; floor?: { material: THREE.MeshStandardMaterial; color: THREE.Color } };
 const scenes = new WeakMap<THREE.Scene, Baseline>();
-const background = new THREE.Color("#11181b"), floorColor = new THREE.Color("#192125"), mistColor = new THREE.Color("#263136");
+const background = new THREE.Color("#11181b"), floorColor = new THREE.Color("#192125");
 export function themeEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, amount: number) {
   let baseline = scenes.get(scene);
   if (!baseline) {
@@ -52,7 +53,9 @@ export function themeEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
     scenes.set(scene, baseline);
   }
   (scene.background as THREE.Color).copy(baseline.background).lerp(background, amount);
-  if (scene.fog && baseline.fog) scene.fog.color.copy(baseline.fog).lerp(mistColor, amount);
+  // Fully fogged geometry must converge to the clear background, including
+  // direct/super-performance output. Otherwise the finite floor reveals a seam.
+  if (scene.fog && baseline.fog) scene.fog.color.copy(baseline.fog).lerp(background, amount);
   if (baseline.floor) baseline.floor.material.color.copy(baseline.floor.color).lerp(floorColor, amount);
   scene.environmentIntensity = THREE.MathUtils.lerp(baseline.intensity, .32, amount);
   renderer.toneMappingExposure = THREE.MathUtils.lerp(baseline.exposure, .98, amount);

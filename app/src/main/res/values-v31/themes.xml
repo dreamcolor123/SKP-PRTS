@@ -3,6 +3,6 @@
     <style name="Theme.PermissionManager" parent="Theme.PermissionManager.Base">
         <item name="android:windowSplashScreenBackground">@color/skp_brand_paper</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/skp_startup_animated</item>
-        <item name="android:windowSplashScreenAnimationDuration">1000</item>
+        <item name="android:windowSplashScreenAnimationDuration">1300</item>
     </style>
 </resources>

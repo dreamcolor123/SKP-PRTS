@@ -31,8 +31,7 @@ try{
     localStorage.setItem('rhine-settings',JSON.stringify({sound:false,music:false,superPerformance:true}));
     const audit=window.syncAudit={delay:0,failNext:false,encodes:[],samples:[],phase:'startup',enabled:false};
     const original=WebGL2RenderingContext.prototype.clientWaitSync;
-    const read=WebGL2RenderingContext.prototype.getBufferSubData;
-    const reads=new WeakMap();let activeRead;
+    const reads=new WeakMap();
     window.syncSnapshot=()=>{
       const panel=document.querySelector('.folder-face-panel'),canvas=document.querySelector('#three-scene canvas');
       if(!panel||!canvas||!window.rhine)return null;
@@ -43,6 +42,7 @@ try{
       const matrix=new DOMMatrix(style.transform),actualQuad=[[0,0],[panel.offsetWidth,0],[panel.offsetWidth,panel.offsetHeight],[0,panel.offsetHeight]].map(([x,y])=>{const p=matrix.transformPoint({x,y});return{x:p.x/p.w,y:p.y/p.w};});
       return {time:performance.now(),phase:audit.phase,canvasFrame:canvas.dataset.folderFrame,panelFrame:panel.dataset.folderFrame,
         synchronized:stats.folderFrame?.synchronized,pending:stats.folderFrame?.pending,presented:stats.folderFrame?.presented,
+        simulationFrames:stats.simulationFrames,pipeline:stats.folderPipeline,
         title:panel.querySelector('h2')?.textContent,section:panel.dataset.section,root:panel.dataset.root,selected:stats.selected,
         corners:panel.dataset.corners,transform:panel.style.transform,headerTransform:panel.querySelector('.ff-header')?.style.transform,
         visibleFraction:Number(panel.dataset.visibleFraction??0),mask:panel.style.maskImage,clip:panel.style.clipPath,opacity:Number(style.opacity),
@@ -56,15 +56,11 @@ try{
         entry={id:audit.encodes.length+1,start:performance.now(),delay:audit.delay,failed,before:window.syncSnapshot()};
         reads.set(sync,entry);audit.encodes.push(entry);
       }
-      activeRead=entry;
       if(performance.now()-entry.start<entry.delay+(entry.id%3)*20)return this.TIMEOUT_EXPIRED;
-      return original.call(this,sync,...args);
-    };
-    WebGL2RenderingContext.prototype.getBufferSubData=function(...args){
-      const entry=activeRead;
-      if(entry){entry.end=performance.now();entry.beforeCallback=window.syncSnapshot();}
-      if(entry?.failed)throw new Error('Injected asynchronous depth readback failure');
-      return read.apply(this,args);
+      if(entry.failed){entry.end=performance.now();return this.WAIT_FAILED;}
+      const value=original.call(this,sync,...args);
+      if(value===this.ALREADY_SIGNALED||value===this.CONDITION_SATISFIED)entry.end=performance.now();
+      return value;
     };
     const monitor=()=>{if(audit.enabled){const sample=window.syncSnapshot();if(sample)audit.samples.push(sample);}requestAnimationFrame(monitor);};
     requestAnimationFrame(monitor);
@@ -104,7 +100,7 @@ try{
   await page.screenshot({path:`${out}/extraction-partial.png`});
   await page.evaluate(()=>{window.syncAudit.phase='codec-failure';window.syncAudit.failNext=true;});
   await page.waitForFunction(()=>window.syncAudit.encodes.some(x=>x.failed&&x.end),null,{timeout:15000});
-  await page.waitForFunction(()=>Number(document.querySelector('.folder-face-panel').dataset.maskRetries)>0,null,{timeout:10000});
+  await page.waitForFunction(()=>window.rhine.stats().folderPipeline.failed>0,null,{timeout:10000});
   await page.screenshot({path:`${out}/codec-failure-held-frame.png`});
   await page.waitForFunction(()=>{
     const failed=window.syncAudit.encodes.find(x=>x.failed);
@@ -121,6 +117,7 @@ try{
   for(const sample of active){
     if(sample.pending!==undefined&&sample.expectedQuad)preparedProjection.set(String(sample.pending),sample.expectedQuad);
     if(sample.canvasFrame!==sample.panelFrame)report.violations.push({kind:'frame-mismatch',sample});
+    if(sample.pipeline?.inFlight>3)report.violations.push({kind:'unbounded-pipeline',sample});
     if(last&&sample.phase===last.phase&&sample.canvasFrame===last.canvasFrame){
       for(const field of ['title','section','root','corners','transform','headerTransform','mask','clip']){
         if(sample[field]!==last[field])report.violations.push({kind:'uncommitted-'+field,frame:sample.canvasFrame,before:last[field],after:sample[field],time:sample.time,phase:sample.phase});
@@ -130,7 +127,7 @@ try{
     // The production loop presents one frame then immediately starts the
     // next simulation. Match each visible DOM plane to the scene projection
     // recorded while that same numbered frame was pending.
-    const committedProjection=preparedProjection.get(sample.canvasFrame);
+    const committedProjection=preparedProjection.get(sample.canvasFrame)??(sample.pending===undefined?sample.expectedQuad:undefined);
     if(committedProjection){
       projectedFrames++;
       const error=Math.max(...sample.actualQuad.map((p,i)=>Math.hypot(p.x-committedProjection[i].x,p.y-committedProjection[i].y)));
@@ -142,9 +139,7 @@ try{
   assert.ok(failed,'The encoder failure must actually execute');
   const duringFailure=active.filter(sample=>sample.time>=failed.start&&sample.time<=failed.end);
   assert.ok(duringFailure.length>=2,'Artificial codec delay must span multiple animation frames');
-  for(const sample of duringFailure){
-    if(sample.canvasFrame!==failed.before.canvasFrame||sample.mask!==failed.before.mask||sample.clip!==failed.before.clip)report.violations.push({kind:'failed-readback-mutated-visible-frame',sample,expected:failed.before});
-  }
+  assert.ok(duringFailure.at(-1).simulationFrames>duringFailure[0].simulationFrames,'A delayed or failed slot must not stop scene simulation');
   const delayed=report.encodes.filter(entry=>entry.delay>=80&&entry.end);
   assert.ok(delayed.length>=4,'Navigation must exercise several delayed non-solid GPU masks');
   assert.ok(active.some(sample=>sample.visibleFraction>.02&&sample.visibleFraction<.98),'The real foreground geometry must partially occlude a rising work surface');
@@ -160,7 +155,7 @@ try{
   assert.deepEqual(errors,[]);
   assert.deepEqual(report.violations,[]);
   report.passed=true;
-  say('PASS: visible canvas, mask, projected controls and labels commit together; GPU fence delay/readback failure retains the prior complete frame.');
+  say('PASS: paired canvas/mask/projection frames remain coherent; bounded asynchronous slots do not stop simulation during a delayed or failed readback.');
 }catch(error){report.error={message:error.message,stack:error.stack};say('FAIL: '+error.message);throw error;}
 finally{
   await writeFile(`${out}/report.json`,JSON.stringify(report,null,2));

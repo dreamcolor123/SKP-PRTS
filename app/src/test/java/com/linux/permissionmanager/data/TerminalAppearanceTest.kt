@@ -8,7 +8,7 @@ class TerminalAppearanceTest {
     @Test
     fun missingTerminalPreferencesUseCompatibleDefaults() {
         val defaults = AppearanceSettings()
-        assertEquals(ThemeMode.SYSTEM, defaults.themeMode)
+        assertEquals(ThemeMode.DARK, defaults.themeMode)
         assertEquals(SceneQuality.BALANCED, defaults.sceneQuality)
         assertTrue(defaults.motionEnabled)
         assertTrue(defaults.sceneEnabled)

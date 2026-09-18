@@ -53,6 +53,11 @@ export class FolderDepthMask {
   private readonly worldMatrix = new THREE.Matrix4();
   private readonly clipMatrix = new THREE.Matrix4();
   private readonly corner = new THREE.Vector4();
+  private readonly rayBounds = new THREE.Box3();
+  private readonly boxCenter = new THREE.Vector3();
+  private readonly boxHalfSize = new THREE.Vector3();
+  private readonly cameraPosition = new THREE.Vector3();
+  private readonly cameraDirection = new THREE.Vector3();
   private faceBounds = {left:0,right:0,top:0,bottom:0,far:1};
   private counters = {samples:0,asyncReads:0,syncReads:0,emptyPasses:0,tested:0,drawn:0,triangles:0,submitMs:0};
   get stats() { return {...this.counters}; }
@@ -79,6 +84,16 @@ export class FolderDepthMask {
   private intersects(geometry:THREE.BufferGeometry,matrix:THREE.Matrix4) {
     if(!geometry.boundingBox)geometry.computeBoundingBox();
     const box=geometry.boundingBox!;
+    // Every potential blocker lies on a segment from the camera to the face.
+    // Its world AABB must intersect that volume; this rejects the floor and
+    // sunken neighbors even when their projected boxes cover the whole screen.
+    box.getCenter(this.boxCenter).applyMatrix4(matrix);
+    box.getSize(this.boxHalfSize).multiplyScalar(.5);
+    const e=matrix.elements,h=this.boxHalfSize,c=this.boxCenter,bounds=this.rayBounds;
+    const rx=Math.abs(e[0])*h.x+Math.abs(e[4])*h.y+Math.abs(e[8])*h.z;
+    const ry=Math.abs(e[1])*h.x+Math.abs(e[5])*h.y+Math.abs(e[9])*h.z;
+    const rz=Math.abs(e[2])*h.x+Math.abs(e[6])*h.y+Math.abs(e[10])*h.z;
+    if(c.x+rx<bounds.min.x||c.x-rx>bounds.max.x||c.y+ry<bounds.min.y||c.y-ry>bounds.max.y||c.z+rz<bounds.min.z||c.z-rz>bounds.max.z)return false;
     this.clipMatrix.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse).multiply(matrix);
     let left=Infinity,right=-Infinity,top=-Infinity,bottom=Infinity,near=Infinity;
     for(let i=0;i<8;i++){
@@ -147,6 +162,16 @@ export class FolderDepthMask {
     this.model.updateWorldMatrix(true, false);
     this.face.matrixWorld.copy(this.model.matrixWorld);
     this.face.layers.mask = this.camera.layers.mask;
+    this.camera.getWorldPosition(this.cameraPosition);this.camera.getWorldDirection(this.cameraDirection);
+    this.rayBounds.makeEmpty().expandByPoint(this.cameraPosition);
+    for(const [x,y] of [[-2.28,3.4],[2.28,3.4],[2.28,.18],[-2.28,.18]]){
+      this.point.set(x,y,.275).applyMatrix4(this.model.matrixWorld);this.rayBounds.expandByPoint(this.point);
+      if(this.camera instanceof THREE.OrthographicCamera){
+        const distance=(this.point.x-this.cameraPosition.x)*this.cameraDirection.x+(this.point.y-this.cameraPosition.y)*this.cameraDirection.y+(this.point.z-this.cameraPosition.z)*this.cameraDirection.z;
+        this.point.addScaledVector(this.cameraDirection,-distance);this.rayBounds.expandByPoint(this.point);
+      }
+    }
+    this.rayBounds.expandByScalar(.03);
     const depths:number[]=[];
     const quad = [[-2.28, 3.4], [2.28, 3.4], [2.28, 0.18], [-2.28, 0.18]]
       .map(([x, y]) => {

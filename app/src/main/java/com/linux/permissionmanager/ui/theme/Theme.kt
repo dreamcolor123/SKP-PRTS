@@ -39,7 +39,7 @@ data class SemanticColors(
 )
 
 object TerminalPalette {
-    val Signal = Color(0xFF9B7247)
+    val Signal = Color(0xFFD8C5F2)
     val Ink = Color(0xFF080A08)
     val Paper = Color(0xFFEAE5E1)
     val Panel = Color(0xFFEDEBE4)
@@ -60,8 +60,8 @@ object AppearanceTokens {
 }
 
 private val TerminalLight = lightColorScheme(
-    primary = TerminalPalette.Ink,
-    onPrimary = Color.White,
+    primary = TerminalPalette.Signal,
+    onPrimary = Color(0xFF21182E),
     primaryContainer = TerminalPalette.Signal,
     onPrimaryContainer = TerminalPalette.Ink,
     secondary = Color(0xFF77756D),
@@ -96,10 +96,10 @@ private val TerminalLight = lightColorScheme(
 )
 
 private val TerminalDark = darkColorScheme(
-    primary = Color(0xFFE0E3DC),
-    onPrimary = TerminalPalette.Night,
-    primaryContainer = Color(0xFF514719),
-    onPrimaryContainer = Color(0xFFFFE58B),
+    primary = TerminalPalette.Signal,
+    onPrimary = Color(0xFF21182E),
+    primaryContainer = Color(0xFF44374F),
+    onPrimaryContainer = Color(0xFFE8DDF7),
     secondary = Color(0xFFA6B0B1),
     onSecondary = TerminalPalette.Ink,
     secondaryContainer = Color(0xFF2A363B),

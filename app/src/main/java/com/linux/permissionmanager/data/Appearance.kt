@@ -68,7 +68,7 @@ data class AppearanceSettings(
     val controlTransparency: Float = 0.24f,
     val glassNavigationEnabled: Boolean = true,
     val glassNavigationTransparency: Float = 0.5f,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themeMode: ThemeMode = ThemeMode.DARK,
     val motionEnabled: Boolean = true,
     val sceneEnabled: Boolean = true,
     val sceneQuality: SceneQuality = SceneQuality.BALANCED,
@@ -158,7 +158,7 @@ class AppearanceStore(private val context: Context) {
         glassNavigationTransparency = AppSettings
             .getString(AppSettings.KEY_APPEARANCE_GLASS_NAVIGATION_TRANSPARENCY, "0.5")
             .toFloatOrNull()?.coerceIn(0f, 1f) ?: 0.5f,
-        themeMode = ThemeMode.fromKey(AppSettings.getString(TerminalAppearanceKeys.THEME_MODE, "SYSTEM")),
+        themeMode = ThemeMode.fromKey(AppSettings.getString(TerminalAppearanceKeys.THEME_MODE, "DARK")),
         motionEnabled = AppSettings.getBoolean(TerminalAppearanceKeys.MOTION_ENABLED, true),
         sceneEnabled = AppSettings.getBoolean(TerminalAppearanceKeys.SCENE_ENABLED, true),
         sceneQuality = SceneQuality.fromKey(AppSettings.getString(TerminalAppearanceKeys.SCENE_QUALITY, "BALANCED")),

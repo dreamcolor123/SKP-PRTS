@@ -2,7 +2,7 @@ import "./theme.css";
 const palette = {
   ink: ["#080a08", "#e0e3dc"], muted: ["#77756d", "#a6b0b1"], line: ["#aaa59a", "#536166"],
   paper: ["#eae5e1", "#11181b"], panel: ["#edebe4", "#202a2f"], field: ["#e7e3d9", "#2a363b"],
-  accent: ["#9b7247", "#c5a16b"],
+  accent: ["#71509a", "#ceb8ed"],
 } as const;
 let previous = -1;
 export let themeAmount = 0;

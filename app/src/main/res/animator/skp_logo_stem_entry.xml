@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android" android:ordering="together"><objectAnimator android:propertyName="translateY" android:valueFrom="-12" android:valueTo="0" android:valueType="floatType" android:startOffset="216" android:duration="764" android:interpolator="@interpolator/skp_logo_assemble"/></set>

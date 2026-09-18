@@ -1,5 +1,11 @@
 # SKP × RhineLabUI 测试交付状态
 
+> 最新一秒玻璃转换与连续开场镜头见 [动画细化](UI_MOTION_POLISH.md)。
+
+> 最新性能回归修复、暗色/SUPER PERFORMANCE 默认值及淡紫配色见 [渲染流水线](UI_RENDER_PIPELINE.md)。
+
+> 最新用户 Logo 与动画替换见 [用户 Logo](UI_USER_LOGO.md)，旧品牌记录作为历史保留。
+
 > 最新遮挡同步、传感器轴向及逐张导航见 [交互修复](UI_DEPTH_NAVIGATION.md)。旧文档保留为历史。
 
 > 最新性能、图标、列序、视差和弹窗音乐修复见 [UI 修复](UI_POLISH.md)。本页旧计数与 APK 为历史记录。

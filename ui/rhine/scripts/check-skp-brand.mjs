@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { build } = require(process.env.ESBUILD_MODULE || "esbuild");
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
+const { chromium } = require(process.env.SKP_PLAYWRIGHT_PATH || process.env.PLAYWRIGHT_MODULE || "playwright");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const output = resolve(process.env.BRAND_QA_OUTPUT || "../../deliverables/brand-qa");
 await mkdir(output, { recursive: true });
@@ -28,7 +28,7 @@ if (process.env.REFERENCE_ROOT) {
     comparedFrames++;
   }
 }
-const bundle = await compile('export { BootSequence } from "./src/boot"; export { logo, brandHeading } from "./src/brand";', root, true);
+const bundle = await compile('export { BootSequence } from "./src/boot"; export { logoSvg, brandHeading } from "./src/brand";', root, true);
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -41,31 +41,34 @@ try {
   await page.addScriptTag({ content: bundle });
   await page.evaluate(() => {
     const stage = document.querySelector("#stage");
-    stage.innerHTML = `<div class="brand">${SkpBrandTest.brandHeading}</div><div class="powered">POWERED BY SKROOT PRO</div><div id="boot-background" class="boot-background"><svg></svg></div><div class="boot"><div class="access-text"></div><div class="boot-logo">${SkpBrandTest.logo}</div><div class="auth-status"><span>◈</span><span id="auth-message"></span></div><div class="scan"><svg viewBox="0 0 1920 1080"><g>${"<path/>".repeat(6)}<circle class="orbit-dot"/><circle class="orbit-dot"/><circle class="scan-core"/></g></svg><span></span></div><div class="welcome"><div class="welcome-panel"></div><div class="welcome-heading"></div><div class="welcome-company"><strong>SKROOT PRO</strong><strong>SKROOT PRO</strong></div><div class="welcome-highlight"></div><div class="welcome-database"></div><div class="welcome-logo">${SkpBrandTest.logo}</div></div><div class="boot-white"></div></div>`;
+    stage.innerHTML = `<div class="brand">${SkpBrandTest.brandHeading}</div><div class="powered">POWERED BY SKROOT PRO</div><div id="boot-background" class="boot-background"><svg></svg></div><div class="boot"><div class="access-text"></div><div class="boot-logo">${SkpBrandTest.logoSvg("qa-boot")}</div><div class="auth-status"><span>◈</span><span id="auth-message"></span></div><div class="scan"><svg viewBox="0 0 1920 1080"><g>${"<path/>".repeat(6)}<circle class="orbit-dot"/><circle class="orbit-dot"/><circle class="scan-core"/></g></svg><span></span></div><div class="welcome"><div class="welcome-panel"></div><div class="welcome-heading"></div><div class="welcome-company"><strong>SKROOT PRO</strong><strong>SKROOT PRO</strong></div><div class="welcome-highlight"></div><div class="welcome-database"></div><div class="welcome-logo">${SkpBrandTest.logoSvg("qa-welcome")}</div></div><div class="boot-white"></div></div><div hidden>${SkpBrandTest.logoSvg("qa-static",false)}</div>`;
     window.sequence = new SkpBrandTest.BootSequence(stage);
   });
   for (const time of [4.16, 4.8, 5.4, 8.2, 14.48, 16.04, 17.76, 19.04, 21.92]) {
     const observation = await page.evaluate(t => {
       window.sequence.update(t);
       const mark = document.querySelector(".boot-logo svg");
-      const wordmark = mark.querySelector(".sk-wordmark");
-      const rect = wordmark.getBBox();
+      const paths = [...mark.querySelectorAll("defs > path")];
+      const ids = [...document.querySelectorAll(".sk-user-logo [id]")].map(element => element.id);
       return { frame: document.querySelector("#stage").dataset.bootFrame,
         fallback: document.querySelectorAll(".boot-lettering-fallback").length,
-        paths: mark.querySelectorAll("[data-brand-letter]").length,
-        wordmark: { width: rect.width, height: rect.height },
-        contourLength: mark.querySelector(".sk-contour").getTotalLength() };
+        paths: paths.map(path => ({name:path.id.split('-').at(-1),length:path.getTotalLength()})),
+        viewBox: mark.getAttribute("viewBox"),
+        duplicateIds: ids.filter((id,index) => ids.indexOf(id) !== index),
+        oldLogo: mark.querySelectorAll(".sk-contour,.sk-terminals").length };
     }, time);
     assert.equal(observation.fallback, 0, `every visible phrase has authored artwork at ${time}s`);
-    assert.equal(observation.paths, 9);
-    assert(observation.contourLength > 700);
-    assert(observation.wordmark.width > 0);
+    assert.deepEqual(observation.paths.map(path => path.name), ["s","stem","bridge","leg"]);
+    assert(observation.paths.every(path => path.length > 0));
+    assert.equal(observation.viewBox, "0 0 240 128");
+    assert.deepEqual(observation.duplicateIds, []);
+    assert.equal(observation.oldLogo, 0);
     await page.screenshot({ path: resolve(output, `boot-${time.toFixed(2)}.png`) });
   }
   await page.evaluate(() => window.sequence.reset());
   assert.deepEqual(errors, []);
   const report = { status: "passed", comparedFrames, originalDiscreteFps: 25, preservedTimeline: comparedFrames === 851,
-    authoredGlyphs: 9, phraseFallbacks: 0, capturedFrames: 9, pageErrors: errors };
+    userLogoParts: 4, independentLogoInstances: 3, phraseFallbacks: 0, capturedFrames: 9, pageErrors: errors };
   await writeFile(resolve(output, "brand-verification.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally { await browser.close(); }
