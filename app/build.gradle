@@ -1,0 +1,216 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+def requestedApplicationId = project.findProperty('PUBLISH_APPLICATION_ID')?.toString()?.trim()
+def requestedAppName = project.findProperty('PUBLISH_APP_NAME')?.toString()?.trim()
+def effectiveApplicationId = requestedApplicationId ?: 'com.linux.prts'
+def effectiveAppName = requestedAppName ?: 'SKP-PRTS'
+def skrootCoreVersion = project.findProperty('SKROOT_CORE_VERSION')?.toString()?.trim() ?: '4.6.2'
+def skrootUiRevisionText = project.findProperty('SKROOT_UI_REVISION')?.toString()?.trim() ?: '1'
+def coreVersionParts = skrootCoreVersion.tokenize('.')
+if (coreVersionParts.size() != 3 || !coreVersionParts.every { it ==~ /\d+/ }) {
+    throw new GradleException('SKROOT_CORE_VERSION must use major.minor.patch, for example 4.5.4')
+}
+if (!(skrootUiRevisionText ==~ /\d+/)) {
+    throw new GradleException('SKROOT_UI_REVISION must be an integer from 1 to 999')
+}
+def coreMajor = coreVersionParts[0].toInteger()
+def coreMinor = coreVersionParts[1].toInteger()
+def corePatch = coreVersionParts[2].toInteger()
+def skrootUiRevision = skrootUiRevisionText.toInteger()
+if (coreMinor > 99 || corePatch > 99 || skrootUiRevision < 1 || skrootUiRevision > 999) {
+    throw new GradleException('Version ranges are major >= 0, minor/patch 0..99 and UI revision 1..999')
+}
+def releaseVersionName = "${skrootCoreVersion}.${skrootUiRevision}"
+def releaseVersionCode = coreMajor * 10_000_000 + coreMinor * 100_000 + corePatch * 1_000 + skrootUiRevision
+if (releaseVersionCode < 1 || releaseVersionCode > 2_100_000_000) {
+    throw new GradleException("Calculated Android versionCode is out of range: ${releaseVersionCode}")
+}
+def releaseStoreFile = project.findProperty('RELEASE_STORE_FILE')?.toString()
+def releaseStorePassword = project.findProperty('RELEASE_STORE_PASSWORD')?.toString()
+def releaseKeyAlias = project.findProperty('RELEASE_KEY_ALIAS')?.toString()
+def releaseKeyPassword = project.findProperty('RELEASE_KEY_PASSWORD')?.toString()
+def hasPublishedSigning = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
+
+android {
+    namespace 'com.linux.permissionmanager'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        applicationId effectiveApplicationId
+        minSdk 26
+        targetSdk 31
+        versionCode releaseVersionCode
+        versionName releaseVersionName
+        buildConfigField 'String', 'SKROOT_CORE_VERSION', "\"${skrootCoreVersion}\""
+        buildConfigField 'int', 'SKROOT_UI_REVISION', skrootUiRevision.toString()
+        buildConfigField 'String', 'PUBLISH_APP_NAME', "\"${effectiveAppName.replace('\\', '\\\\').replace('"', '\\"')}\""
+        manifestPlaceholders = [appLabel: effectiveAppName]
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        vectorDrawables.useSupportLibrary = true
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++20'
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
+
+    signingConfigs {
+        if (hasPublishedSigning) {
+            publishedRelease {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasPublishedSigning) signingConfig signingConfigs.publishedRelease
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildFeatures {
+        aidl true
+        compose true
+        buildConfig true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.18.1'
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}', '/META-INF/DEPENDENCIES']
+        }
+    }
+
+    // permissionmanager.so and magica.so are compiled from the upstream manager sources.
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lint {
+        // These two detectors crash under the fixed AGP 8.7.3 / Lifecycle 2.9.4 /
+        // Compose 2025.08 toolchain before any project source is inspected.
+        disable 'NullSafeMutableLiveData',
+                'FrequentlyChangingValue',
+                'RememberInComposition',
+                'AutoboxingStateCreation',
+                // targetSdk 31 is an explicit compatibility contract for this migration.
+                'ExpiredTargetSdkVersion'
+    }
+
+    applicationVariants.all { variant ->
+        if (variant.buildType.name == 'release') {
+            variant.outputs.all { output ->
+                output.outputFileName = "v${releaseVersionName}-UI重构版-${effectiveAppName}.apk"
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.activity:activity-compose:1.10.1'
+
+    implementation platform('androidx.compose:compose-bom:2025.08.01')
+    androidTestImplementation platform('androidx.compose:compose-bom:2025.08.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.material3:material3:1.4.0'
+    implementation 'io.github.elyesmansour:floatingTabBar:1.0.1'
+    implementation 'dev.chrisbanes.haze:haze:1.4.0'
+
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-savedstate:2.9.4'
+    implementation 'androidx.navigation:navigation-compose:2.9.4'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    // Apache-2.0 Android build-tools component used for on-device APK v2/v3
+    // signing and verification. Version is pinned to the project's AGP.
+    implementation 'com.android.tools.build:apksig:8.7.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+    testImplementation 'org.json:json:20240303'
+
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}
+
+def upstreamNativeBinaries = [
+        'libresetprop.so'               : '70558e6d6199fa5a961b7bafeb8f96d8157cc63810db8df2a3cded1881763697',
+        'libcve2026_43499_ghostlock.so' : '7b2d158fad8af96082b3954d1ecb65e91e7a62d8cd475ba067698a0dfcd20778',
+]
+def upstreamSdkArchive = 'd066b9a55ce5319552ec2f42bc3ae11d38f3f1f541220ee2e7de645b63b8a3aa'
+
+tasks.register('verifyUpstreamNativeBinaries') {
+    def nativeDir = file('src/main/jniLibs/arm64-v8a')
+    def sdkArchive = rootProject.file('testModule/kernel_module_kit/lib/libkernel_module_kit_static.a')
+    inputs.files(upstreamNativeBinaries.keySet().collect { new File(nativeDir, it) } + sdkArchive)
+    doLast {
+        upstreamNativeBinaries.each { name, expected ->
+            def binary = new File(nativeDir, name)
+            if (!binary.isFile()) throw new GradleException("Missing upstream native binary: ${name}")
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+                    .digest(binary.bytes)
+                    .collect { String.format('%02x', it) }
+                    .join()
+            if (digest != expected) {
+                throw new GradleException("Unexpected SHA-256 for ${name}: ${digest}")
+            }
+        }
+        if (!sdkArchive.isFile()) throw new GradleException('Missing upstream SDK archive: libkernel_module_kit_static.a')
+        def sdkDigest = java.security.MessageDigest.getInstance('SHA-256')
+                .digest(sdkArchive.bytes)
+                .collect { String.format('%02x', it) }
+                .join()
+        if (sdkDigest != upstreamSdkArchive) {
+            throw new GradleException("Unexpected SHA-256 for libkernel_module_kit_static.a: ${sdkDigest}")
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('verifyUpstreamNativeBinaries')
+}
