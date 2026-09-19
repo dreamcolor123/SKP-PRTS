@@ -38,4 +38,5 @@ Ghostlock 使用上游仓库中的原始预编译 ARM64 文件，Gradle 打包�
 
 - 不提取或复制 `libpermissionmanager.so`、`libmagica.so` APK 二进制。
 - 不复制签名密钥、密码、GitHub Token 或旧项目 `.git`。
-- 本地已创建初始源码提交，便于后续 UI 重构比较；未配置 remote、推送或发布 Release。
+- 本地保留初始源码及后续 UI 提交历史。经项目所有者明确要求，公开源码仓库为 `https://github.com/dreamcolor123/SKP-PRTS`；不随源码提交签名材料或本地 APK，也不启用自动发布。
+- 来源记录不是许可证。第三方 Native 与 SDK 不因项目根目录的 MIT 声明而被重新授权，详见 `THIRD_PARTY_NOTICES.md`。

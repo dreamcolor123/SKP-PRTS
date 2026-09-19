@@ -18,3 +18,14 @@ Thumbs.db
 dist/
 
 app/appKey.jks
+
+# Local signing material, credentials and packaged artifacts
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
