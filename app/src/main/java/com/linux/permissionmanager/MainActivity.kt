@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -628,7 +629,10 @@ private fun SkpApp(
             ) { content() }
         }
     } else {
-        SkpTheme(appearance) { content() }
+        SkpTheme(appearance) {
+            // Paint behind safeDrawingPadding and transparent system bars as the theme changes.
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content() }
+        }
     }
 }
 
