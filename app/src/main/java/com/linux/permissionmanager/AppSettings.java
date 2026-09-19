@@ -7,6 +7,13 @@ import java.util.Collections;
 import java.util.Set;
 
 public class AppSettings {
+    public static final String KEY_MANAGER_UI_MODE = "manager_ui_mode";
+    public static final String KEY_MANAGER_UI_SELECTED = "manager_ui_selected";
+
+    public static boolean saveManagerUiMode(String mode) {
+        return preferences.edit().putString(KEY_MANAGER_UI_MODE, mode)
+                .putBoolean(KEY_MANAGER_UI_SELECTED, true).commit();
+    }
     public static final String KEY_IS_HOTLOAD_MODE = "is_hotload_mode";
     public static final String KEY_IS_HOTLOAD_MODE_UPSTREAM = "isHotloadMode";
     public static final String HOTLOAD_SHELL_PATH = "/sdcard/1.h";

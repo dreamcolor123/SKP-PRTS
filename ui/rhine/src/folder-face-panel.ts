@@ -35,6 +35,7 @@ export interface FolderFaceCallbacks {
   browse(): void;
   back(): void;
   bookmark(recordId: string): void;
+  uiModeSettings?(): string;
   changed?(): void;
 }
 
@@ -329,7 +330,7 @@ export class FolderFacePanel {
     return `<section class="ff-download" aria-label="下载进度"><div class="ff-section-heading"><strong>${h(record.title)}</strong>${actions(record).filter(a => a.action === "download.cancel").map(a => this.actionButton(record, a, "inline")).join("")}</div><progress max="1" ${typeof progress === "number" ? `value="${Math.max(0, Math.min(1, progress))}"` : ""}></progress>${this.fields(record)}</section>`;
   }
   private settings(all: PresentationRecord[]) {
-    return all.filter(r => !r.empty).map(record => {
+    return (this.callbacks.uiModeSettings?.() ?? "") + all.filter(r => !r.empty).map(record => {
       const recordActions = actions(record);
       return `<section class="ff-settings-group"><h3>${h(record.title)}</h3>${recordActions.map(action => {
         if (action.action === "settings.toggle") {

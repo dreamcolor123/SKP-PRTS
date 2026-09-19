@@ -323,16 +323,23 @@ class RhineHostTest {
         val folder = File(instrumentation.targetContext.getExternalFilesDir(null), "visual/rhine").apply { mkdirs() }
         File(folder, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         var dark = 0; var light = 0
+        val tones = mutableMapOf<Int, Int>()
         for (y in bitmap.height / 10 until bitmap.height * 9 / 10 step 4) for (x in 0 until bitmap.width step 4) {
             val color = bitmap.getPixel(x, y)
             val level = (Color.red(color) + Color.green(color) + Color.blue(color)) / 3
             if (level < 160) dark++
             if (level > 200) light++
+            val tone = ((Color.red(color) shr 4) shl 8) or ((Color.green(color) shr 4) shl 4) or (Color.blue(color) shr 4)
+            tones[tone] = (tones[tone] ?: 0) + 1
         }
         bitmap.recycle()
-        File(folder, "$name.json").writeText(inspect().put("screenDarkSamples", dark).put("screenLightSamples", light).toString(2))
-        assertTrue("Screen has no visible ink: $name", dark > 20)
-        assertTrue("Screen has no visible background: $name", light > 100)
+        val background = tones.values.maxOrNull() ?: 0
+        val foreground = tones.values.sum() - background
+        File(folder, "$name.json").writeText(inspect().put("screenDarkSamples", dark).put("screenLightSamples", light)
+            .put("dominantBackgroundSamples", background).put("foregroundSamples", foreground).put("colorBins", tones.size).toString(2))
+        // A dark opening is valid too; a uniform/blank surface still fails.
+        assertTrue("Screen has no visible ink: $name", foreground > 20 && tones.size >= 4)
+        assertTrue("Screen has no visible background: $name", background > 100)
     }
     private fun findWeb(view: View?): WebView? {
         if (view is WebView) return view

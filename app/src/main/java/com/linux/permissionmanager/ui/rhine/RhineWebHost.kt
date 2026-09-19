@@ -27,8 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -74,7 +72,6 @@ fun RhineWebHost(
     val currentFailure by rememberUpdatedState(onFailure)
     val latestSnapshot by rememberUpdatedState(snapshot)
     var resumed by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
-    var generation by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var connection by remember { mutableStateOf<RhineConnection?>(null) }
@@ -95,12 +92,8 @@ fun RhineWebHost(
         connection?.close()
         connection = null
         connected = false
-        if (generation == 0) {
-            generation = 1
-        } else {
-            failed = true
-            currentFailure(reason)
-        }
+        failed = true
+        currentFailure(reason)
     }
 
     DisposableEffect(owner) {
@@ -116,8 +109,10 @@ fun RhineWebHost(
                     .put("x", tilt.x).put("y", tilt.y).toString())
             }
         }
-        if (connected && effectiveActive && !reducedMotion && sensorEnabled) sensor?.start() else sensor?.stop()
-        onDispose { sensor?.stop() }
+        try {
+            if (connected && effectiveActive && !reducedMotion && sensorEnabled) sensor?.start() else sensor?.stop()
+        } catch (_: Exception) { fail("方向传感器初始化失败") }
+        onDispose { runCatching { sensor?.stop() } }
     }
     LaunchedEffect(connection, connected, snapshot) {
         if (connected) connection?.sendSnapshot(snapshot)
@@ -132,14 +127,14 @@ fun RhineWebHost(
             view.onPause()
         }
     }
-    LaunchedEffect(generation, failed) {
+    LaunchedEffect(failed) {
         if (failed) return@LaunchedEffect
         delay(30_000)
         if (!connected) fail("离线界面初始化超时")
     }
     BackHandler(connected && active && !failed) { connection?.send(JSONObject().put("type", "back").toString()) }
     Box(modifier) {
-        if (!failed) key(generation) {
+        if (!failed) {
             AndroidView<View>(
                 modifier = Modifier.fillMaxSize(),
                 factory = { viewContext ->

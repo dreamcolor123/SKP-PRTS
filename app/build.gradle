@@ -206,6 +206,36 @@ tasks.register('packageRhineFrontend', Sync) {
 android.sourceSets.main.assets.srcDir(rhineOutput)
 tasks.named('preBuild').configure { dependsOn 'packageRhineFrontend' }
 
+tasks.register('verifyLegacyUiSource') {
+    def inventory = rootProject.file('docs/legacy-ui-source.json')
+    inputs.file(inventory)
+    inputs.files(rootProject.fileTree('tools/legacy-reference'))
+    inputs.files(fileTree('src/main/java/com/linux/permissionmanager/ui/legacy'))
+    doLast {
+        def manifest = new groovy.json.JsonSlurper().parse(inventory)
+        if (manifest.commit != 'd2a8ccf8067e031dddbbffc972eb1cb81ed77df5' || manifest.tag != 'v4.6.2.1') {
+            throw new GradleException('Unexpected legacy UI reference')
+        }
+        (manifest.snapshots + manifest.adapted).each { entry ->
+            def source = rootProject.file(entry.path)
+            if (!source.isFile() || !source.canonicalPath.startsWith(rootProject.projectDir.canonicalPath + File.separator)) {
+                throw new GradleException("Invalid legacy UI file: ${entry.path}")
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256').digest(source.bytes).encodeHex().toString()
+            if (digest != entry.sha256) throw new GradleException("Legacy UI hash mismatch: ${entry.path}")
+        }
+        def sources = fileTree('src/main/java/com/linux/permissionmanager/ui/legacy').matching { include '**/*.kt' }
+        if (sources.files.size() != manifest.adapted.size()) throw new GradleException('Unrecorded legacy UI source')
+        sources.each { source ->
+            if (source.text =~ /(?m)^import\s+com\.linux\.permissionmanager\.ui\.(rhine|motion|scene|theme|components|screens)\./) {
+                throw new GradleException("New UI dependency in legacy UI: ${source.name}")
+            }
+        }
+        println "LEGACY_UI_VERIFIED commit=${manifest.commit} files=${manifest.adapted.size()}"
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyLegacyUiSource' }
+
 def upstreamNativeBinaries = [
         'libresetprop.so'               : '70558e6d6199fa5a961b7bafeb8f96d8157cc63810db8df2a3cded1881763697',
         'libcve2026_43499_ghostlock.so' : '7b2d158fad8af96082b3954d1ecb65e91e7a62d8cd475ba067698a0dfcd20778',

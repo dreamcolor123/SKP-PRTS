@@ -14,7 +14,8 @@
 
 - 后续 UI 重构优先修改 Compose 页面、状态和主题，不要把 UI 改动混入 Native 或 SDK 迁移。
 - 默认 Application ID 为 `com.linux.prts`，默认应用名为 `SKP-PRTS`；发布时可通过 Gradle 参数覆盖。
-- 当前版本源仍为 `gradle.properties` 中的 `SKROOT_CORE_VERSION=4.6.2` 与 `SKROOT_UI_REVISION=1`。
+- 当前版本源为 `gradle.properties` 中的 `SKROOT_CORE_VERSION=4.6.2` 与 `SKROOT_UI_REVISION=2`。
+- 旧 UI 固定来源与适配摘要由 `docs/legacy-ui-source.json` 管理；修改旧版组件时必须保持原版视觉并重新验证来源差异，不能直接替换摘要绕过检查。
 - 本目录无 GitHub remote、签名密钥或 Token；保留手动 GitHub Actions 构建模板，但不自动发布。是否接入远端由后续明确任务决定。
 - 管理器更新检测默认关闭，继承的更新代码仍指向原 Compose 项目。SKP-PRTS 正式发布前必须明确自有更新渠道，不得把原项目 APK 当作 SKP-PRTS 更新。
 

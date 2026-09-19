@@ -145,6 +145,19 @@ class AppearanceStore(private val context: Context) {
         update(AppearanceSettings())
     }
 
+    fun resetLegacy() {
+        clearBackground()
+        val defaults = AppearanceSettings()
+        update(mutableState.value.copy(
+            palette = defaults.palette,
+            backgroundAlpha = defaults.backgroundAlpha,
+            chromeTransparency = defaults.chromeTransparency,
+            controlTransparency = defaults.controlTransparency,
+            glassNavigationEnabled = defaults.glassNavigationEnabled,
+            glassNavigationTransparency = defaults.glassNavigationTransparency,
+        ))
+    }
+
     private fun load(): AppearanceSettings = AppearanceSettings(
         palette = PaletteId.fromKey(AppSettings.getString(AppSettings.KEY_APPEARANCE_PALETTE, PaletteId.INDIGO.key)),
         backgroundUri = AppSettings.getString(AppSettings.KEY_APPEARANCE_BACKGROUND_URI, "").ifBlank { null },

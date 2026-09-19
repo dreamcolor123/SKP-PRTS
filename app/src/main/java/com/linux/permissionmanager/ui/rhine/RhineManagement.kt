@@ -27,6 +27,13 @@ class RhineOverlayViewModel : ViewModel() {
     internal var confirmation = RhineConfirmation()
     internal var command by mutableStateOf<String?>(null)
     internal var reboot by mutableStateOf<RebootOption?>(null)
+    fun clear() {
+        confirmation.cancel()
+        action = null
+        payload = JSONObject()
+        command = null
+        reboot = null
+    }
 }
 
 /** The renderer requests existing manager actions; it never receives execution capability. */
@@ -44,16 +51,23 @@ internal fun RhineManagement(
     audioActive: Boolean,
     reducedMotion: Boolean,
     onConsole: (String) -> Unit,
-    onLegacyAppearance: () -> Unit,
+    uiMode: ManagerUiMode,
+    switchAllowed: Boolean,
+    onUiModeChange: (ManagerUiMode) -> Boolean,
+    onRendererFailure: (String) -> Unit,
+    overlays: RhineOverlayViewModel = viewModel(),
 ) {
     val mainState by main.state.collectAsStateWithLifecycle()
     val homeState by home.state.collectAsStateWithLifecycle()
     val authorizationState by authorization.state.collectAsStateWithLifecycle()
     val moduleState by modules.state.collectAsStateWithLifecycle()
     val settingsState by settings.state.collectAsStateWithLifecycle()
-    val overlays: RhineOverlayViewModel = viewModel()
-    val snapshot = remember(mainState, homeState, authorizationState, moduleState, settingsState) {
-        RhineStateMapper.snapshot(mainState, homeState, authorizationState, moduleState, settingsState)
+    val canSwitch = switchAllowed && overlays.action == null && overlays.reboot == null
+    val snapshot = remember(mainState, homeState, authorizationState, moduleState, settingsState, uiMode, canSwitch) {
+        JSONObject(RhineStateMapper.snapshot(mainState, homeState, authorizationState, moduleState, settingsState))
+            .put("uiMode", uiMode.key).put("uiModeSwitchAllowed", canSwitch)
+            .put("uiModeSwitchReason", if (canSwitch) "" else "请先完成当前操作")
+            .put("appVersion", com.linux.permissionmanager.BuildConfig.VERSION_NAME).toString()
     }
     val busy = mainState.rootConfig.busy || homeState.busyAction != null || authorizationState.busy ||
         moduleState.busy || settingsState.busyItem != null
@@ -72,10 +86,13 @@ internal fun RhineManagement(
     fun installed(payload: JSONObject) = modules.state.value.installed.firstOrNull { it.id == payload.optString("id") }
     fun market(payload: JSONObject) = modules.state.value.market.firstOrNull { it.id == payload.optString("id") }
     val dispatch: (String, JSONObject) -> Boolean = dispatch@{ action, payload ->
+        if (application.container.managerUi.mode.value != ManagerUiMode.RHINE) return@dispatch false
         val busy = isBusyNow()
         when (action) {
             "navigation.exit" -> { application.container.events.emit(UiEffect.FinishActivity); true }
-            "fallback.open" -> { session.basicManagement.value = true; true }
+            "ui.mode.set" -> ManagerUiMode.fromKey(payload.optString("mode"))?.let { target ->
+                canSwitch && !isBusyNow() && onUiModeChange(target)
+            } ?: false
             "root.config.open" -> if (busy || overlays.action != null) false else { main.showRootConfig(); true }
             "refresh", "home.refresh" -> {
                 when (payload.optString("scope", "home")) {
@@ -109,7 +126,7 @@ internal fun RhineManagement(
             "download.cancel" -> if (moduleState.download?.cancellable == true) { modules.cancelDownload(); true } else false
             "log.open" -> { settings.showLog(); true }
             "customizer.open" -> if (busy) false else { customizer.show(); true }
-            "appearance.open" -> { onLegacyAppearance(); true }
+            "appearance.open" -> false // Handled by the local frontend, never opens another manager.
             "settings.toggle" -> {
                 if (busy || !payload.has("enabled")) false else when (payload.optString("key")) {
                     "bootFailProtect" -> { settings.setBootFail(payload.getBoolean("enabled")); true }
@@ -173,13 +190,10 @@ internal fun RhineManagement(
             modifier = Modifier.fillMaxSize().safeDrawingPadding(),
         )
     }
-    session.rendererError.value?.let { error ->
-        RhineDialog("界面加载失败", { session.rendererError.value = null; session.basicManagement.value = true },
-            confirm = { session.rendererError.value = null; session.rendererGeneration.value++ }, confirmLabel = "重试界面") {
-            Text(error)
-            TextButton(onClick = { session.rendererError.value = null; session.basicManagement.value = true }) { Text("进入基础管理") }
-        }
+    LaunchedEffect(session.rendererError.value) {
+        session.rendererError.value?.let { reason -> overlays.clear(); onRendererFailure(reason) }
     }
+    DisposableEffect(Unit) { onDispose { overlays.clear(); session.sensorEnabled.value = false } }
     if (authorizationState.pickerVisible) AppPickerDialog(
         state = authorizationState,
         onDismiss = authorization::hidePicker,

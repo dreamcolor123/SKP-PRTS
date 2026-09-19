@@ -7,16 +7,18 @@
 ## 当前状态
 
 - 上游核心：`4.6.2`
-- 应用版本：`4.6.2.1`
+- 应用版本：`4.6.2.2`
 - 默认 Application ID：`com.linux.prts`
 - 默认应用名：`SKP-PRTS`
 - ABI：`arm64-v8a`
 - 源码仓库：[dreamcolor123/SKP-PRTS](https://github.com/dreamcolor123/SKP-PRTS)
-- 当前应用实现提交：`9d7403d`，包含开场结束后首次导航方向修复
-- Release：[v4.6.2.1 测试版](https://github.com/dreamcolor123/SKP-PRTS/releases/tag/v4.6.2.1)，提供已签名的 arm64 APK 和 SHA-256；沿用测试证书，尚未配置正式发布签名、自动更新渠道或自动发布
+- 当前功能：新旧 UI 即时切换，保留开场结束后首次导航方向修复
+- Release：[v4.6.2.2 测试版](https://github.com/dreamcolor123/SKP-PRTS/releases/tag/v4.6.2.2)，提供已签名的 arm64 APK 和 SHA-256；沿用测试证书，尚未配置正式发布签名、自动更新渠道或自动发布
 
 ## 界面与交互
 
+- 首次启动选择新版或旧版 UI；之后可在两套设置顶部即时切换并记忆。
+- 旧版固定采用 SKRoot-Pro-Compose v4.6.2.1 的原页面、主题和控件；新版渲染失败时自动回退旧版。详见 [双 UI 说明](docs/DUAL_UI.md)。
 - 原创 SKRoot Pro 动态标识、完整开场与连续镜头过渡。
 - 档案正面的透视工作区、物理遮挡、玻璃材质与悬浮导航。
 - 概览、授权、模块、市场、设置五个入口，搜索直达现有原生操作。
@@ -44,6 +46,7 @@
 
 ```bash
 ./gradlew :app:verifyUpstreamNativeBinaries
+./gradlew :app:verifyLegacyUiSource
 ./gradlew :app:testDebugUnitTest
 ./gradlew :app:assembleDebug
 ./gradlew :app:lintDebug
@@ -67,7 +70,7 @@ Windows 若遇到 `Unable to establish loopback connection`，可在当前终端
 
 ## 验证范围
 
-当前版本已完成 Debug / Release 构建、各 80 项 JVM 测试、Native 来源检查及模拟器安装启动。新增导航回归覆盖手机和宽屏下的完整开场、跳过、重播、首次直接进入模块及减少动态；镜头回归检查连续轨迹与开场交接。
+当前版本已完成 Debug / Release 构建、各 88 项 JVM 测试、Native 来源检查及模拟器安装启动。双 UI 测试覆盖首次选择、双向切换、共享状态、真实 WebGL 故障回退、后台恢复及横竖屏；镜头回归检查连续轨迹与开场交接。旧版四组页面与锁定来源的实际截图对照中，应用内容逐像素一致，差异仅在系统状态栏；设置页新增切换项单独验收。
 
 真机 Root 操作、高刷新率、温升与不同设备的传感器手感仍需单独验证。模拟器和桌面结果不等于真机性能保证。未签名 Release 不能直接安装；本地测试签名也不代表正式发布签名。
 
@@ -81,5 +84,6 @@ Windows 若遇到 `Unable to establish loopback connection`，可在当前终端
 
 - 感谢 [LBEILC / RhineLabUI](https://github.com/LBEILC/RhineLabUI) 提供原始 UI 项目。本项目的三维档案界面、开场 MG、材质、交互与动画移植建立在其代码及资产之上。
 - 感谢 [abcz316 / SKRoot-linuxKernelRoot](https://github.com/abcz316/SKRoot-linuxKernelRoot) 提供 SKRoot 项目、管理器源码与公开 SDK。本项目沿用其核心能力、Native 接口和管理器业务流程，主要工作集中于 UI 重构与交互适配。
+- 旧版界面直接保留 [SKRoot-Pro-Compose](https://github.com/dreamcolor123/SKRoot-Pro-Compose) v4.6.2.1 的 Compose 实现及其上游署名。
 
 感谢两位作者及相关贡献者的工作。原项目与第三方素材的版权和授权条款继续有效；本项目是独立 UI 改编，不代表上述项目的官方版本。

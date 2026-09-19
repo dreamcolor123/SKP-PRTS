@@ -1,4 +1,6 @@
 import { isAndroid, skpHost, type UiSnapshot, type Presentation } from "./skp-host";
+import { UiModeController, uiModeMarkup, syncUiModeControls } from "./ui-mode";
+import "./ui-mode.css";
 import "./skp.css";
 import { FolderFacePanel } from "./folder-face-panel";
 import { sections, functionResults, type SectionId } from "./function-index";
@@ -255,6 +257,7 @@ if (entry) {
 }
 let audioPreview = false, audioPreviewRequest = 0;
 let scene: ArchiveScene | undefined;
+let hostRenderingFailed = false;
 let threeState: "on" | "closing" | "off" | "loading" = "on";
 let resumeCell: { lane: number; row: number } | undefined;
 let resumeSelection = -1;
@@ -268,12 +271,15 @@ let pausedAt: number | undefined;
 let pausedAnimations: Animation[] = [];
 let hostReduced = false;
 let snapshotReceived = false;
+let appVersion = "4.6.2.2";
 let activeSection: SectionId = "home";
 let workspaceRoot = true;
 let browsingArray = false;
 let workspaceInitialized = false;
 let labReturn: { id: string; section: SectionId; root: boolean } | undefined;
+const uiMode = new UiModeController((action, payload) => skpHost.request(action, payload), () => syncUiModeControls(document, uiMode.state));
 const facePanel = new FolderFacePanel($("#viewport"), {
+  uiModeSettings: () => isAndroid ? uiModeMarkup(uiMode.state) : "",
   select: index => openWorkspace(index, false),
   action: (recordId, actionId) => {
     const record = records.find(r=>r.id === recordId);
@@ -362,6 +368,9 @@ function homeIndex() {
 }
 function applySnapshot(snapshot: UiSnapshot) {
   if (!snapshot || !Array.isArray(snapshot.records)) return;
+  uiMode.update(snapshot);
+  appVersion = snapshot.appVersion ?? "4.6.2.2";
+  document.querySelectorAll<HTMLElement>("[data-app-version]").forEach(node => { node.textContent = appVersion; });
   const previous = records[selected];
   const previousLane = fileLocation(selected).lane;
   const previousRow = columnFiles(previousLane).indexOf(selected);
@@ -410,7 +419,7 @@ function applyPresentation(value: Presentation) {
   }
   syncHostPause();
   if (value.bootAllowed && ready && !started) {
-    void audio.unlock();
+    void audio.unlock().catch(() => false);
     completeStartup(false);
   }
 }
@@ -445,7 +454,7 @@ function nativeBack() {
   else skpHost.request("navigation.exit");
 }
 function visualLabMarkup() {
-  return `<section class="skp-lab-settings"><div class="panel-label">MOTION LAB / 动态展示</div><p>原始三维拆解、波浪、升降、音乐频谱、屏幕噪点与波纹接力。</p><div class="skp-actions"><button data-action="visual-lab">${visualLab ? "返回管理器" : "打开动态展示"}<b>↗</b></button><button data-action="lab-model">三维模型 / 拆解与组装<b>↗</b></button><button data-action="native-fallback">基础管理界面<b>↗</b></button></div></section>`;
+  return `<section class="skp-lab-settings"><div class="panel-label">MOTION LAB / 动态展示</div><p>原始三维拆解、波浪、升降、音乐频谱、屏幕噪点与波纹接力。</p><div class="skp-actions"><button data-action="visual-lab">${visualLab ? "返回管理器" : "打开动态展示"}<b>↗</b></button><button data-action="lab-model">三维模型 / 拆解与组装<b>↗</b></button></div></section>`;
 }
 function applyLabSettings() {
   window.dispatchEvent(new CustomEvent("rhine-wallpaper-properties", { detail: {
@@ -935,7 +944,10 @@ function motionSettingsMarkup() {
     : "当前使用完整动效。"}</p>${prefs.reduced ? '<button data-action="enable-motion">启用完整动效并重播 ↻</button>' : ""}</div>`;
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">SKP SESSION <span>·</span> SESSION CONNECTED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>REDUCED MOTION</strong><span>跳过开机动画，简化选档、镜头和文字动效</span></div><input type="checkbox" data-pref="reduced" ${prefs.reduced ? "checked" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${isAndroid ? visualLabMarkup() : pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>SKP-PRTS / 4.6.2.1 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY SKROOT PRO</span></div>`;
+  return (isAndroid ? uiModeMarkup(uiMode.state) : "") + appearanceSettingsMarkup();
+}
+function appearanceSettingsMarkup() {
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">SKP SESSION <span>·</span> SESSION CONNECTED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>REDUCED MOTION</strong><span>跳过开机动画，简化选档、镜头和文字动效</span></div><input type="checkbox" data-pref="reduced" ${prefs.reduced ? "checked" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${isAndroid ? visualLabMarkup() : pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>SKP-PRTS / <span data-app-version>${escapeHtml(appVersion)}</span> · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY SKROOT PRO</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -979,6 +991,8 @@ document.addEventListener("change", (e) => {
   }
 });
 document.addEventListener("click", (e) => {
+  const uiModeButton = (e.target as Element).closest<HTMLButtonElement>("[data-ui-mode]");
+  if (uiModeButton) { if (started && !modalClosing && !uiModeButton.disabled) uiMode.select(uiModeButton.dataset.uiMode); return; }
   const sectionButton = (e.target as Element).closest<HTMLElement>(".workspace-navigation [data-section]");
   if (sectionButton && started && mode !== "boot") { navigateSection(sectionButton.dataset.section as SectionId); return; }
   if ((e.target as Element).closest("[data-search-saved]")) { modal = "saved"; renderModal(); return; }
@@ -1034,7 +1048,6 @@ document.addEventListener("click", (e) => {
   if (action === "visual-lab") { closeModal(() => setVisualLab(!visualLab)); return; }
   if (action === "lab-exit") { setVisualLab(false); return; }
   if (action === "lab-finish") { labFinish = !labFinish; applyLabSettings(); return; }
-  if (action === "native-fallback") { skpHost.request("fallback.open"); return; }
   if (action === "lab-model") { closeModal(() => { setMode("detail"); document.querySelector<HTMLButtonElement>('[data-action="model-viewer"]')?.click(); }); return; }
   if (el.dataset.labRhythm) { labRhythm = el.dataset.labRhythm; applyLabSettings(); return; }
   if (action === "toggle-three") { void toggleThree(); return; }
@@ -1251,6 +1264,7 @@ let lastTime = 0,
   frameStart = performance.now(),
   fps = 0;
 function frame(ms: number) {
+  if (hostRenderingFailed) return;
   if (!wallpaperFrame(ms)) { requestAnimationFrame(frame); return; }
   if (document.hidden || !skpHost.presentation.active) { requestAnimationFrame(frame); return; }
   workbench?.tick();
@@ -1312,6 +1326,14 @@ function frame(ms: number) {
   }
   requestAnimationFrame(frame);
 }
+function failAndroidRenderer(reason: string) {
+  if (hostRenderingFailed) return;
+  hostRenderingFailed = true;
+  audio.setHostPaused(true);
+  $("#stage").inert = true;
+  facePanel.setInert(true);
+  skpHost.event("error", { reason });
+}
 function bindScene(scene: ArchiveScene, cell?: { lane: number; row: number }) {
     scene.onOpen = index => { if (!visualLab && !modal) openWorkspace(index, sections.some(s=>s.root===records[index]?.id)); };
     let backgroundStart: {x:number;y:number;pointer:number}|undefined;
@@ -1328,7 +1350,7 @@ function bindScene(scene: ArchiveScene, cell?: { lane: number; row: number }) {
     canvas.addEventListener("pointercancel", ()=>{backgroundStart=undefined;}, true);
     scene.renderer.domElement.addEventListener("webglcontextlost", event => {
       event.preventDefault();
-      skpHost.event("error", { reason: "三维绘制上下文丢失，请重试界面或进入基础管理。" });
+      if (isAndroid) failAndroidRenderer("三维绘制上下文丢失，正在切换旧版 UI。");
     }, { once: true });
     scene.select(selected, cell ? { cell } : undefined);
     scene.onSelect = (i, cell) => {
@@ -1418,6 +1440,7 @@ async function toggleThree() {
   } catch (error) {
     next?.dispose(); scene = undefined;
     threeState = "off"; syncThreeButton();
+    if (isAndroid) { failAndroidRenderer(String(error)); return; }
     notify("三维模型载入失败，请点击 3D 关闭重试。");
     console.error(error);
   }
@@ -1452,14 +1475,14 @@ async function start() {
     else {
       if (isWallpaper || isAndroid) {
         // CEF allows automatic audio; never block the visual on audio policy or decoding.
-        await Promise.race([audio.unlock(), new Promise(resolve => setTimeout(resolve, 3000))]);
+        await Promise.race([audio.unlock().catch(() => false), new Promise(resolve => setTimeout(resolve, 3000))]);
       }
       if (!isAndroid || skpHost.presentation.bootAllowed) completeStartup(false);
     }
   } catch (error) {
     console.error(error);
-    skpHost.event("error", { reason: String(error) });
     scene?.dispose(); scene = undefined; threeState = "off";
+    if (isAndroid) { failAndroidRenderer(String(error)); return; }
     ready = true;
     if (!isAndroid || skpHost.presentation.bootAllowed) completeStartup(false);
     notify("三维资源暂不可用，管理功能仍可使用；设置中可重试。");
@@ -1574,6 +1597,7 @@ if (isWallpaper) {
   });
 }
 skpHost.bind({ state: applySnapshot, presentation: applyPresentation, notice: notify, back: nativeBack,
+  acknowledge: (requestId, status, reason) => uiMode.acknowledge(requestId, status, reason),
   motion: (x,y) => { sensorTilt = {x,y}; },
 });
 document.addEventListener("visibilitychange", syncHostPause);

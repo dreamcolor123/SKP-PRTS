@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/dreamcolor123/SKRoot-Pro-Compose",
+  "tag": "v4.6.2.1",
+  "commit": "d2a8ccf8067e031dddbbffc972eb1cb81ed77df5",
+  "baselineCommit": "9a1b00a",
+  "snapshotsAreCompiled": false,
+  "sharedBusinessSources": [
+    "ui/AppViewModels.kt",
+    "ui/LocalCustomizerViewModel.kt",
+    "data/Models.kt",
+    "data/Repositories.kt",
+    "data/Appearance.kt"
+  ],
+  "snapshots": [
+    {
+      "path": "tools/legacy-reference/ui/components/Components.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/components/Components.kt",
+      "sha256": "e2b0ff58a74fe11d16271afaa727a28d81ebda3e6e2441e580178b3efc22e039",
+      "gitBlob": "604e43899008dd17b8c840f44bca515fdb10842c",
+      "baselineBlob": "604e43899008dd17b8c840f44bca515fdb10842c",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/components/GlassNavigationBar.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/components/GlassNavigationBar.kt",
+      "sha256": "c3154511d42c38f7db2a4e8b5fa2a3fabcb1d555a7f88dd921bfe6b94c4ae77e",
+      "gitBlob": "40b1f03aea7e8a7c4b4bcfe5aa3d8da6bed43ce1",
+      "baselineBlob": "40b1f03aea7e8a7c4b4bcfe5aa3d8da6bed43ce1",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/theme/Theme.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/theme/Theme.kt",
+      "sha256": "b24a1ca2195079bdd75ca91aae4749037b6aade340150714bf5647e20fa08532",
+      "gitBlob": "7b525fb812afe6cbe9a386666e2dc6ec3bd40a99",
+      "baselineBlob": "7b525fb812afe6cbe9a386666e2dc6ec3bd40a99",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/theme/AppearanceBackground.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/theme/AppearanceBackground.kt",
+      "sha256": "8e98eddd28a9a88426291a4b948b33400fcdd9c7750851076a8b559cfaceac60",
+      "gitBlob": "149fd7bed67eb6178e77d49ba028d5750bd4f0fc",
+      "baselineBlob": "149fd7bed67eb6178e77d49ba028d5750bd4f0fc",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/HomeScreen.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/HomeScreen.kt",
+      "sha256": "00e553a11d0f858f809c4be98b23512b68f3bd70f93230513acf122c4eb673a4",
+      "gitBlob": "a739efa4658397b3c4d5c02f58e31f515b035dd7",
+      "baselineBlob": "a739efa4658397b3c4d5c02f58e31f515b035dd7",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/LocalCustomizerDialog.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/LocalCustomizerDialog.kt",
+      "sha256": "a003981bbb7b2c17a39d8fe6c5db28491765f282667d76b4d3d9f1a60af38199",
+      "gitBlob": "302b75e2d4caa6304a661d3d7f0c71d150d54a39",
+      "baselineBlob": "302b75e2d4caa6304a661d3d7f0c71d150d54a39",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/ModuleScreen.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/ModuleScreen.kt",
+      "sha256": "ad4c6d02cadc0adce8c0fe3e62779a970d02db0fc5093012dad428b4cfc8638d",
+      "gitBlob": "4756718ea23277fbdabe89740b2888f2a4a57322",
+      "baselineBlob": "4756718ea23277fbdabe89740b2888f2a4a57322",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/RootAndLog.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/RootAndLog.kt",
+      "sha256": "3b3b0554808d8f2d2b1253434a1807d4723eea58ad104ce605e74387cda86450",
+      "gitBlob": "e10fd6367f032e5e8ee940128cf47c470ca9c16f",
+      "baselineBlob": "e10fd6367f032e5e8ee940128cf47c470ca9c16f",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/SettingsScreen.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/SettingsScreen.kt",
+      "sha256": "b8992533be7c79a71b32dfac5fce26faba5d9f5eb70124a8ca78442deffc24d5",
+      "gitBlob": "83dafad78e711801762d4be6f2c0957e79f5a9da",
+      "baselineBlob": "83dafad78e711801762d4be6f2c0957e79f5a9da",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/ui/screens/SuperUserScreen.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/ui/screens/SuperUserScreen.kt",
+      "sha256": "85d7743299d37c0a3f8659ede3b18c935a9506785110a274efa0e94349083ad4",
+      "gitBlob": "bddb009b2fe8a1147e3b4d2a36eb5b69e88b3539",
+      "baselineBlob": "bddb009b2fe8a1147e3b4d2a36eb5b69e88b3539",
+      "baselineIdentical": true
+    },
+    {
+      "path": "tools/legacy-reference/MainActivity.kt",
+      "upstreamPath": "app/src/main/java/com/linux/permissionmanager/MainActivity.kt",
+      "sha256": "c8b371905840e287598c95dfaa81719599bbef6b0e4aea28cd905c8cb6348187",
+      "gitBlob": "c401dda6c742c36f06a659a7615ce47aad001f2e",
+      "baselineBlob": "c401dda6c742c36f06a659a7615ce47aad001f2e",
+      "baselineIdentical": true
+    }
+  ],
+  "adapted": [
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/components/Components.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/components/Components.kt",
+      "sha256": "678917adab5d3edafc77e292e4b73150c855369bd23f2282cefd5340291476ba",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/components/GlassNavigationBar.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/components/GlassNavigationBar.kt",
+      "sha256": "42561f52cfaacb25209e5b99600277d32fc59a1d440d893d99c6adfbcd7a7f43",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/theme/Theme.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/theme/Theme.kt",
+      "sha256": "024d81434b9937ebbed8aba886416e8485dce3496e6e73f5e829a7156c7dae2c",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/theme/AppearanceBackground.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/theme/AppearanceBackground.kt",
+      "sha256": "fb393f0d98b7d1dc0ddff192e3411fe222bd7bca3a268b53ad0e64f9d6041d13",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/HomeScreen.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/HomeScreen.kt",
+      "sha256": "9f093a6c981d26903fc348755f8c129bf0b1063060fd856ef2f9c81bbf2c01fa",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/LocalCustomizerDialog.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/LocalCustomizerDialog.kt",
+      "sha256": "fa89fa021d3f63d1b4ef4d4ba7224c39c85ceaad44e142edea90ff634001ba0c",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/ModuleScreen.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/ModuleScreen.kt",
+      "sha256": "0e6e82f79a0c4c6edac055f333c9688d48032f01c3aff78ecf683a265d80770a",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/RootAndLog.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/RootAndLog.kt",
+      "sha256": "4ddf81bc5c5080a7890c26cd512f3b9a05490f53530951f3c4c987405f11c73c",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/SettingsScreen.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/SettingsScreen.kt",
+      "sha256": "1d391bf84df5a1943706b524c9ad09f4553f5d3ed9261bb87f6a31c347729ad5",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents",
+        "Append uiMode/onUiModeChange/uiModeSwitchAllowed parameters and Material segmented UI selector; disable switching while busy; no other layout changes"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/screens/SuperUserScreen.kt",
+      "sourceSnapshot": "tools/legacy-reference/ui/screens/SuperUserScreen.kt",
+      "sha256": "6797dd0609e6f849a06a261303cf3d823f8252635963f583bae8a0ee998e53f1",
+      "allowedChanges": [
+        "package/import mapping from ui.components/screens/theme to ui.legacy equivalents"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/linux/permissionmanager/ui/legacy/LegacyMainScreen.kt",
+      "sourceSnapshot": "tools/legacy-reference/MainActivity.kt",
+      "sha256": "1d7a93f38eaed8c4f9a90a931fd11be2d692ced5ad1103732c73a2ae9192c3db",
+      "allowedChanges": [
+        "Extract navigationItems, AdaptiveMainScreen and MainPage without body changes",
+        "Rename private AdaptiveMainScreen to public LegacyMainScreen",
+        "Retain only imports required by extracted declarations, mapped to legacy packages"
+      ]
+    }
+  ]
+}

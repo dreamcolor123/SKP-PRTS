@@ -30,5 +30,5 @@ val RHINE_ACTIONS: Set<String> = setOf(
     "module.pick", "module.details", "module.webui.open", "module.shortcut.open", "module.update.check",
     "module.changelog", "module.update.request", "module.remove.request", "market.install.request", "download.cancel",
     "settings.toggle", "diagnostics.open", "log.open", "log.clear.request", "reboot.options.open",
-    "customizer.open", "link.open", "refresh", "appearance.open", "fallback.open", "navigation.exit"
+    "customizer.open", "link.open", "refresh", "appearance.open", "ui.mode.set", "navigation.exit"
 )

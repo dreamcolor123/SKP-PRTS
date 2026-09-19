@@ -19,7 +19,9 @@
     "format": "prettier --write src scripts index.html package.json tsconfig.json",
     "preview": "vite preview --host 127.0.0.1",
     "build:android": "node scripts/patch-rolling-number.mjs && tsc && vite build --mode android && node scripts/build-android-manifest.mjs",
-    "check:android": "node --experimental-strip-types --test scripts/check-android.mjs"
+    "check:android": "node --experimental-strip-types --test scripts/check-android.mjs",
+    "check:ui-mode": "node --test scripts/check-ui-mode.mjs",
+    "check:ui-mode:browser": "node scripts/check-ui-mode-browser.mjs"
   },
   "dependencies": {
     "@kitlangton/rolling-number": "0.4.1",

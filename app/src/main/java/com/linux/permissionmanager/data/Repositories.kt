@@ -479,6 +479,7 @@ class UpdateRepository(
 
 class AppContainer(context: Context) {
     val settings = SettingsStore()
+    val managerUi = ManagerUiStore()
     val appearance = AppearanceStore(context.applicationContext)
     val customizer = LocalCustomizerRepository(context.applicationContext)
     val events = UiEventBus()

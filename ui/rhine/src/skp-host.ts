@@ -1,7 +1,8 @@
 import type { ArchiveRecord } from "./data";
+import type { UiModeSnapshot } from "./ui-mode";
 
 export const isAndroid = import.meta.env.MODE === "android" || new URLSearchParams(location.search).get("host") === "android";
-export interface UiSnapshot { records: ArchiveRecord[]; configured?: boolean; statusText?: string; busy?: boolean; }
+export interface UiSnapshot extends UiModeSnapshot { records: ArchiveRecord[]; configured?: boolean; statusText?: string; busy?: boolean; appVersion?: string; }
 export interface Presentation { active: boolean; audioActive?: boolean; reducedMotion: boolean; bootAllowed: boolean; initialBootTime?: number; initialBootCompleted?: boolean; workspace?: unknown; textScale?: number; }
 type HostMessage =
   | { type: "motion"; version: number; x: number; y: number }
@@ -16,6 +17,7 @@ export interface HostCallbacks {
   presentation(value: Presentation): void;
   notice(text: string): void;
   back(): void;
+  acknowledge?(requestId: string, status: string, reason?: string): void;
 }
 /** Dedicated, origin-bound MessagePort. Reloads never replay action requests. */
 export class SkpHost {
@@ -25,6 +27,7 @@ export class SkpHost {
   private revision = -1;
   private callbacks?: HostCallbacks;
   private snapshot?: UiSnapshot;
+  private queuedError?: Record<string, unknown>;
   private pending = new Map<string, { action: string; sent: number }>();
   presentation: Presentation = { active: true, reducedMotion: false, bootAllowed: !isAndroid };
   get connected() { return Boolean(this.port && this.session); }
@@ -42,6 +45,10 @@ export class SkpHost {
       this.sequence = 0; this.revision = -1; this.pending.clear();
       this.port.onmessage = message => this.receive(message.data); this.port.start();
       this.event("ready");
+      if (this.queuedError) {
+        const error = this.queuedError; this.queuedError = undefined;
+        this.event("error", error);
+      }
     });
   }
   bind(callbacks: HostCallbacks) {
@@ -64,6 +71,7 @@ export class SkpHost {
     else if (message.type === "back") this.callbacks?.back();
     else if (message.type === "ack") {
       this.pending.delete(message.requestId);
+      this.callbacks?.acknowledge?.(message.requestId, message.status, message.reason);
       if (message.status === "rejected") this.callbacks?.notice(message.reason || "操作未执行");
     }
   }
@@ -78,6 +86,7 @@ export class SkpHost {
     return requestId;
   }
   event(type: string, payload: Record<string, unknown> = {}) {
+    if (!this.connected && type === "error") { this.queuedError = payload; return; }
     if (this.connected) this.port!.postMessage(JSON.stringify({ type, version: 1, sessionId: this.session, ...payload }));
   }
 }
