@@ -13,7 +13,7 @@
 - ABI：`arm64-v8a`
 - 源码仓库：[dreamcolor123/SKP-PRTS](https://github.com/dreamcolor123/SKP-PRTS)
 - 当前应用实现提交：`9d7403d`，包含开场结束后首次导航方向修复
-- Release：已完成本地测试构建；尚未配置正式发布签名、自动更新渠道或自动发布
+- Release：[v4.6.2.1 测试版](https://github.com/dreamcolor123/SKP-PRTS/releases/tag/v4.6.2.1)，提供已签名的 arm64 APK 和 SHA-256；沿用测试证书，尚未配置正式发布签名、自动更新渠道或自动发布
 
 ## 界面与交互
 
@@ -76,3 +76,10 @@ Windows 若遇到 `Unable to establish loopback connection`，可在当前终端
 本项目自行编写且有权授权的代码和文档采用 [MIT License](LICENSE)。第三方代码、SDK 二进制、字体、模型、原作视觉及采样声音不因本项目的 MIT 声明而被重新授权。
 
 请同时阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)、[RhineLabUI 资产说明](docs/RHINELAB_ASSETS.md) 和 [Native 来源记录](SOURCE_PROVENANCE.md)，并保留原作者的许可与署名。
+
+## 致谢
+
+- 感谢 [LBEILC / RhineLabUI](https://github.com/LBEILC/RhineLabUI) 提供原始 UI 项目。本项目的三维档案界面、开场 MG、材质、交互与动画移植建立在其代码及资产之上。
+- 感谢 [abcz316 / SKRoot-linuxKernelRoot](https://github.com/abcz316/SKRoot-linuxKernelRoot) 提供 SKRoot 项目、管理器源码与公开 SDK。本项目沿用其核心能力、Native 接口和管理器业务流程，主要工作集中于 UI 重构与交互适配。
+
+感谢两位作者及相关贡献者的工作。原项目与第三方素材的版权和授权条款继续有效；本项目是独立 UI 改编，不代表上述项目的官方版本。
