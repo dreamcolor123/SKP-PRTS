@@ -647,6 +647,7 @@ export class ArchiveScene {
     };
   }
   setMode(mode: "hidden" | "archive" | "detail") {
+    const enteringInteractive = !this.looping && mode !== "hidden";
     this.invalidateFolderFrames();
     this.cancelPointer();
     this.setHover(null);
@@ -668,6 +669,29 @@ export class ArchiveScene {
         this.appearance.dispose(old.group);
       }
       this.outgoing = [];
+    } else if (enteringInteractive) {
+      // Relabel the opening's middle cassette without moving its world pose.
+      // Selection and both tracks must switch coordinate systems together.
+      const next = fileLocation(this.selectedRecord);
+      const laneShift = next.lane - this.selectedCell.lane;
+      const rowShift = next.row - this.selectedCell.row;
+      this.selectedCell = { lane: next.lane, row: next.row };
+      this.selectedSlot = next.slot;
+      this.coordinateOrigin.lane -= laneShift;
+      this.coordinateOrigin.row -= rowShift;
+      this.laneFocus = { value: next.lane, velocity: 0 };
+      this.shoulder = { value: next.row, velocity: 0 };
+      const position = this.cellPosition(this.selectedCell);
+      this.columnCamera = { value: position.x, velocity: 0 };
+      this.rail = { value: -2.17 - position.z, velocity: 0 };
+      for (const pulse of this.pulses) {
+        pulse.lane += laneShift;
+        pulse.row += rowShift;
+      }
+      if (this.pendingPulse) {
+        this.pendingPulse.lane += laneShift;
+        this.pendingPulse.row += rowShift;
+      }
     }
     this.lastInteraction = this.clock;
     this.targetReveal = mode === "hidden" ? 0 : 1;
