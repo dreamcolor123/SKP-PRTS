@@ -183,6 +183,7 @@ class RhineHostTest {
             assertFalse(opening.getJSONObject("motion").getBoolean("sceneReduced"))
             assertFalse(opening.getJSONObject("audio").getJSONObject("preferences").getBoolean("music"))
             compose.runOnIdle { active = false; audioActive = false }
+            compose.waitForIdle()
             await("paused opening") { !it.getJSONObject("host").getJSONObject("presentation").getBoolean("active") }
             SystemClock.sleep(150)
             val frame = eval("document.querySelector('#stage').dataset.bootFrame")
@@ -190,6 +191,7 @@ class RhineHostTest {
             assertEquals(frame, eval("document.querySelector('#stage').dataset.bootFrame"))
             assertEquals("boot", inspect().optString("mode"))
             compose.runOnIdle { active = true; audioActive = true }
+            compose.waitForIdle()
             await("resumed opening") { it.getJSONObject("host").getJSONObject("presentation").getBoolean("active") }
             eval("document.querySelector('[data-action=skip]').click();true")
             val daily = await("simplified workspace after skip") { it.optString("mode") == "detail" }
