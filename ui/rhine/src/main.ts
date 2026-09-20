@@ -1,4 +1,5 @@
 import { isAndroid, skpHost, type UiSnapshot, type Presentation } from "./skp-host";
+import { managerPreferenceDefaults, openingAllowed as canPlayOpening, sceneMotionReduced as reduceScene } from "./manager-preferences";
 import { UiModeController, uiModeMarkup, syncUiModeControls } from "./ui-mode";
 import "./ui-mode.css";
 import "./skp.css";
@@ -91,7 +92,7 @@ $("#stage").innerHTML = `
   </section>
   <section id="detail-ui" class="detail-ui" aria-label="档案内容" hidden>
     <button class="back-button" data-action="back">← <span>ARCHIVE OVERVIEW</span><small>ESC</small></button>
-    <div class="object-caption"><span id="object-id">NO.001</span><div>INTERNAL DATABASE</div><small>DRAG TO INSPECT <span>↔</span></small><button class="viewer-open" data-action="model-viewer">360° 查看文档模型 <span>↗</span></button></div>
+    <div class="object-caption"><span id="object-id">NO.001</span><div>INTERNAL DATABASE</div><small>DRAG TO INSPECT <span>↔</span></small>${isAndroid ? "" : '<button class="viewer-open" data-action="model-viewer">360° 查看文档模型 <span>↗</span></button>'}</div>
     <article id="detail-content" class="detail-content"></article>
   </section>
   <div class="powered">POWERED BY <b>SKROOT PRO</b><i></i></div>
@@ -113,7 +114,7 @@ function animateLoadingLogo(now:number) {
   const active=!document.hidden&&skpHost.presentation.active;
   if(active&&loadingLogoLast!==undefined)loadingLogoTime+=Math.max(0,now-loadingLogoLast)/1000;
   loadingLogoLast=active?now:undefined;
-  loadingLogo.update(loadingLogoTime,prefs.reduced);
+  loadingLogo.update(loadingLogoTime,openingReduced());
   requestAnimationFrame(animateLoadingLogo);
 }
 requestAnimationFrame(animateLoadingLogo);
@@ -169,17 +170,20 @@ function readLocal<T>(key: string, fallback: T): T {
   }
 }
 const saved = new Set<string>(readLocal<string[]>("rhine-saved", []));
-const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; colorTheme: "light" | "dark" }>>("rhine-settings", {});
-let userReduced = Boolean(storedPrefs.reduced);
+const storedPrefs = readLocal<Partial<{ sound: boolean; music: boolean; soundVolume: number; musicVolume: number; reduced: boolean; openingEnabled: boolean; quality: boolean; rendering: RenderQuality; superPerformance: boolean; colorTheme: "light" | "dark" }>>("rhine-settings", {});
+const defaults = managerPreferenceDefaults(storedPrefs, isAndroid);
+let userReduced = defaults.reduced;
+const systemMotionQuery = matchMedia("(prefers-reduced-motion: reduce)");
 const prefs = {
   sound: true,
-  music: storedPrefs.music ?? true,
   soundVolume: .55,
   musicVolume: .5,
   quality: true,
   superPerformance: true,
   ...storedPrefs,
-  reduced: userReduced || matchMedia("(prefers-reduced-motion: reduce)").matches,
+  music: defaults.music,
+  openingEnabled: defaults.openingEnabled,
+  reduced: userReduced || systemMotionQuery.matches,
   rendering: normalizeQuality(storedPrefs.rendering, storedPrefs.quality !== false),
   colorTheme: storedPrefs.colorTheme === "light" ? "light" : "dark",
 };
@@ -270,6 +274,13 @@ let labFinish = true;
 let pausedAt: number | undefined;
 let pausedAnimations: Animation[] = [];
 let hostReduced = false;
+function openingReduced() { return hostReduced || systemMotionQuery.matches; }
+function openingAllowed() { return canPlayOpening(prefs.openingEnabled, openingReduced()); }
+function sceneMotionReduced() { return reduceScene(mode === "boot", prefs.reduced, openingReduced()); }
+function syncMotionMode() {
+  scene?.setReduced(sceneMotionReduced());
+  $("#stage").classList.toggle("reduce-motion", sceneMotionReduced());
+}
 let snapshotReceived = false;
 let appVersion = "4.6.2.2";
 let activeSection: SectionId = "home";
@@ -413,9 +424,10 @@ function applyPresentation(value: Presentation) {
   facePanel.refresh();
   if (hostReduced !== value.reducedMotion) {
     hostReduced = value.reducedMotion;
-    prefs.reduced = hostReduced || userReduced || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    prefs.reduced = openingReduced() || userReduced;
     savePrefs();
-    if (prefs.reduced && started && mode === "boot") setMode("archive");
+    if (openingReduced() && started && mode === "boot") setMode("archive");
+    if (modal === "settings") $("#motion-preference-note")?.replaceWith(document.createRange().createContextualFragment(motionSettingsMarkup()));
   }
   syncHostPause();
   if (value.bootAllowed && ready && !started) {
@@ -453,9 +465,6 @@ function nativeBack() {
   else if (mode !== "archive" && started) setMode("archive");
   else skpHost.request("navigation.exit");
 }
-function visualLabMarkup() {
-  return `<section class="skp-lab-settings"><div class="panel-label">MOTION LAB / 动态展示</div><p>原始三维拆解、波浪、升降、音乐频谱、屏幕噪点与波纹接力。</p><div class="skp-actions"><button data-action="visual-lab">${visualLab ? "返回管理器" : "打开动态展示"}<b>↗</b></button><button data-action="lab-model">三维模型 / 拆解与组装<b>↗</b></button></div></section>`;
-}
 function applyLabSettings() {
   window.dispatchEvent(new CustomEvent("rhine-wallpaper-properties", { detail: {
     audioreactive: { value: visualLab }, reactivemute: { value: false }, reactiveintensity: { value: 100 },
@@ -467,6 +476,7 @@ function applyLabSettings() {
   document.querySelector<HTMLElement>('[data-action="lab-finish"]')?.setAttribute("aria-pressed", String(labFinish));
 }
 function setVisualLab(enabled: boolean) {
+  if (isAndroid) return;
   if (enabled && !visualLab) labReturn = {id:records[selected].id,section:activeSection,root:workspaceRoot};
   visualLab = enabled;
   if (!enabled) playground?.stop();
@@ -509,8 +519,8 @@ function savePrefs() {
     tabTransition.cancel();
     bookmarkFeedback?.cancel();
   }
-  scene?.setReduced(prefs.reduced);
-  scene?.setTheme(prefs.colorTheme === "dark", prefs.reduced || !started);
+  syncMotionMode();
+  scene?.setTheme(prefs.colorTheme === "dark", sceneMotionReduced() || !started);
   document.querySelectorAll<HTMLElement>("[data-color-theme]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.colorTheme === prefs.colorTheme)));
   scene?.setSuperPerformance(superPerformanceEnabled());
   viewer?.setSuperPerformance(superPerformanceEnabled());
@@ -523,7 +533,14 @@ function savePrefs() {
   columnCounter.update({ animated: !prefs.reduced && mode === "archive" });
   selectedCode.update({ animated: !prefs.reduced && mode === "archive" });
   hoverCode.update({ animated: !prefs.reduced && mode === "archive" });
-  $("#stage").classList.toggle("reduce-motion", prefs.reduced);
+  document.querySelectorAll<HTMLInputElement>('[data-pref="reduced"]').forEach(input => {
+    input.checked = userReduced;
+    input.disabled = openingReduced();
+  });
+  document.querySelectorAll<HTMLInputElement>('[data-pref="openingEnabled"]').forEach(input => {
+    input.checked = prefs.openingEnabled;
+    input.disabled = openingReduced();
+  });
   syncWallpaperBackground();
   if (started) publishPresentation();
 }
@@ -595,6 +612,7 @@ function setMode(next: Mode) {
   }
   if (next === "detail" && mode !== "detail") recordAccess();
   mode = next;
+  syncMotionMode();
   if (previousMode === "boot" && next !== "boot" && !reviewParams.has("time") && !isWallpaper) {
     workspaceInitialized = true;
     browsingArray = false;
@@ -742,7 +760,11 @@ function replayBootAfterModal(forcePreview: boolean) {
   bootStart = performance.now() / 1000 - 1.76;
   frozenTime = null;
   lastStep = "";
-  setMode(prefs.reduced && !forcePreview ? "archive" : "boot");
+  if (!openingAllowed()) {
+    openWorkspace(homeIndex(), true);
+    return;
+  }
+  setMode("boot");
   audio.restartBoot();
   selected = homeIndex();
   scene?.select(selected);
@@ -939,15 +961,13 @@ function updateQualitySummary() {
   summary.textContent = `${superPerformanceEnabled() ? "超级性能模式已启用 · 画质设置暂被覆盖，关闭后恢复 · " : ""}实际渲染 ${canvas.width} × ${canvas.height} · ${effectiveRenderQuality().antialias === "smaa" ? "SMAA" : "原始抗锯齿"} · 纹理 ${metrics.anisotropy ?? 1}×${metrics.limited ? " · 已达到缓冲上限" : ""}`;
 }
 function motionSettingsMarkup() {
-  return `<div id="motion-preference-note" class="motion-preference-note"><p>${prefs.reduced
-    ? `当前已减少动态效果。${matchMedia("(prefers-reduced-motion: reduce)").matches ? "系统也请求减少动画，可仅为本站启用完整动效。" : "关闭上方开关可恢复完整动效。"}`
-    : "当前使用完整动效。"}</p>${prefs.reduced ? '<button data-action="enable-motion">启用完整动效并重播 ↻</button>' : ""}</div>`;
+  return `<div id="motion-preference-note" class="motion-preference-note" role="status">${openingReduced() ? "系统已关闭动画" : ""}</div>`;
 }
 function settingsMarkup() {
   return (isAndroid ? uiModeMarkup(uiMode.state) : "") + appearanceSettingsMarkup();
 }
 function appearanceSettingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">SKP SESSION <span>·</span> SESSION CONNECTED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>REDUCED MOTION</strong><span>跳过开机动画，简化选档、镜头和文字动效</span></div><input type="checkbox" data-pref="reduced" ${prefs.reduced ? "checked" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${isAndroid ? visualLabMarkup() : pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>SKP-PRTS / <span data-app-version>${escapeHtml(appVersion)}</span> · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY SKROOT PRO</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">SKP SESSION <span>·</span> SESSION CONNECTED</p>${isWallpaper ? '<p class="wallpaper-settings-note">每次启动都会读取 Wallpaper Engine 中的设置。在此修改仅对当前运行生效，无法持久保存；如需保留，请在 Wallpaper Engine 的壁纸属性中调整。</p>' : ""}<div class="settings-list">${themeSettingsMarkup(prefs.colorTheme === "dark")}${!isWallpaper ? `<label><div><strong>SUPER PERFORMANCE</strong><span>降低三维画质和渲染分辨率，保留完整动效；关闭后恢复原画质</span></div><input type="checkbox" data-pref="superPerformance" ${prefs.superPerformance ? "checked" : ""}/><i class="toggle"></i></label>` : ""}${workbench?.settingsMarkup() ?? ""}${audioSettingsMarkup(prefs)}<label><div><strong>简化动效</strong></div><input type="checkbox" data-pref="reduced" ${userReduced ? "checked" : ""} ${openingReduced() ? "disabled" : ""}/><i class="toggle"></i></label><label><div><strong>开场动画</strong></div><input type="checkbox" data-pref="openingEnabled" ${prefs.openingEnabled ? "checked" : ""} ${openingReduced() ? "disabled" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${isAndroid ? "" : pwaSettingsMarkup()}<div class="settings-shortcuts">${isWallpaper ? '<span>DESKTOP CONTROLS</span><p>拖动阵列或点击界面按钮浏览档案。桌面模式下，方向键与滚轮可能无法传入壁纸。</p>' : '<span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p>'}</div><div class="settings-bottom">${!isWallpaper && document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>SKP-PRTS / <span data-app-version>${escapeHtml(appVersion)}</span> · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY SKROOT PRO</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -981,12 +1001,14 @@ document.addEventListener("change", (e) => {
     const key = el.dataset.pref;
     if (key === "reduced") {
       userReduced = el.checked;
-      prefs.reduced = userReduced || hostReduced || matchMedia("(prefers-reduced-motion: reduce)").matches;
-      el.checked = prefs.reduced;
-      if (prefs.reduced && mode === "boot") setMode("archive");
+      prefs.reduced = userReduced || openingReduced();
+      el.checked = userReduced;
+    } else if (key === "openingEnabled") {
+      prefs.openingEnabled = el.checked;
+      if (!openingAllowed() && mode === "boot") setMode("archive");
     } else if (key === "sound" || key === "music" || key === "quality" || key === "superPerformance") prefs[key] = el.checked;
     if (key === "sound" || key === "music") saveAudioPrefs(); else savePrefs();
-    if (key === "reduced") $("#motion-preference-note").outerHTML = motionSettingsMarkup();
+    if (key === "reduced" || key === "openingEnabled") $("#motion-preference-note")?.replaceWith(document.createRange().createContextualFragment(motionSettingsMarkup()));
     audio.play("confirm");
   }
 });
@@ -1044,6 +1066,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   const action = el.dataset.action;
+  if (isAndroid && (["visual-lab", "lab-exit", "lab-finish", "lab-model", "model-viewer"].includes(action ?? "") || el.dataset.labRhythm)) return;
   if (action === "refresh-state") { skpHost.request("refresh", { scope: ["authorization", "modules", "home", "market", "settings"][fileLocation(selected).lane] }); return; }
   if (action === "visual-lab") { closeModal(() => setVisualLab(!visualLab)); return; }
   if (action === "lab-exit") { setVisualLab(false); return; }
@@ -1099,12 +1122,6 @@ document.addEventListener("click", (e) => {
     renderModal();
   }
   if (action === "replay" || action === "restart") {
-    replayBoot();
-  }
-  if (action === "enable-motion") {
-    userReduced = false;
-    prefs.reduced = hostReduced || matchMedia("(prefers-reduced-motion: reduce)").matches;
-    savePrefs();
     replayBoot();
   }
   if (action === "fullscreen" && document.fullscreenEnabled) {
@@ -1215,7 +1232,7 @@ function bootFrame(t: number) {
     return undefined;
   }
   audio.updateBoot(t, frozenTime !== null);
-  const motion = bootSequence.update(t,prefs.reduced);
+  const motion = bootSequence.update(t,openingReduced());
   if (workbench?.enabled && frozenTime === null) {
     const end = openingShowsDetail(wallpaperHost()?.properties.openingdetail?.value, true) ? 35 : ARRAY_OPENING_END;
     if (t > end - .35) $(".powered").style.opacity = String(1 - ease((t - end + .35) / .35));
@@ -1501,11 +1518,11 @@ function completeStartup(silent: boolean) {
   }
   audio.releaseEntry();
   audio.restartBoot();
-  const fade = prefs.reduced ? 0 : 600;
+  const fade = !openingAllowed() ? 0 : 600;
   bootStart = performance.now() / 1000 - (reviewParams.has("time") ? Number(reviewParams.get("time")) : 1.76);
   if (!reviewParams.has("time")) bootStart += fade / 1000;
   setMode("boot");
-  if (reviewParams.get("scene") === "archive" || (prefs.reduced && !reviewParams.has("time"))) setMode("archive");
+  if (reviewParams.get("scene") === "archive" || (!openingAllowed() && !reviewParams.has("time"))) setMode("archive");
   if (reviewParams.get("scene") === "detail") setMode("detail");
   if (isWallpaper && wallpaperHost()?.properties.boot?.value === false) setMode("archive");
   if (isAndroid && !reviewEntry) {
@@ -1534,6 +1551,12 @@ function completeStartup(silent: boolean) {
   // begins after startup is complete and remains atomic.
   if (!isAndroid) setTimeout(() => void initPwa(notify), 1500);
 }
+systemMotionQuery.addEventListener("change", () => {
+  prefs.reduced = userReduced || openingReduced();
+  if (openingReduced() && started && mode === "boot") setMode("archive");
+  savePrefs();
+  if (modal === "settings") $("#motion-preference-note")?.replaceWith(document.createRange().createContextualFragment(motionSettingsMarkup()));
+});
 updateSelection();
 const customBackground = isWallpaper ? new WallpaperBackground($("#stage"), notify) : undefined;
 function syncWallpaperBackground(retry = false) {
@@ -1544,8 +1567,13 @@ if (isWallpaper) {
     const theme = properties.colortheme?.value;
     if (theme === "light" || theme === "dark") prefs.colorTheme = theme;
     scene?.setArchiveCoverage(properties.archivecoverage?.value === "extra" || wallpaperHost()?.properties.archivecoverage?.value === "extra");
-    for (const key of ["sound", "music", "reduced"] as const)
+    for (const key of ["sound", "music"] as const)
       if (typeof properties[key]?.value === "boolean") prefs[key] = properties[key].value as boolean;
+    if (typeof properties.reduced?.value === "boolean") {
+      userReduced = properties.reduced.value;
+      prefs.reduced = userReduced || openingReduced();
+    }
+    if (typeof properties.boot?.value === "boolean") prefs.openingEnabled = properties.boot.value;
     for (const key of ["soundVolume", "musicVolume"] as const) {
       const value = properties[key.toLowerCase()]?.value;
       if (typeof value === "number" && Number.isFinite(value)) prefs[key] = Math.max(0, Math.min(1, value / 100));
@@ -1648,7 +1676,7 @@ Object.assign(window, {
       host: { connected: skpHost.connected, presentation: skpHost.presentation, visualLab },
       viewport: { width: innerWidth, height: innerHeight, canvasWidth: scene?.renderer.domElement.width, canvasHeight: scene?.renderer.domElement.height },
       startup: started ? "started" : entry?.phase ?? "loading",
-      motion: { reduced: prefs.reduced, systemReduced: matchMedia("(prefers-reduced-motion: reduce)").matches },
+      motion: { reduced: prefs.reduced, userReduced, systemReduced: openingReduced(), openingEnabled: prefs.openingEnabled, openingReduced: openingReduced(), sceneReduced: sceneMotionReduced() },
       face: {plane:facePanel.element.dataset.plane, visibleFraction:Number(facePanel.element.dataset.visibleFraction ?? 1), backdrop:getComputedStyle(facePanel.element).backdropFilter},
       bootTime: mode === "boot" ? started ? (frozenTime ?? performance.now() / 1000 - bootStart) + 5 : 6.76 : null,
       selected: records[selected].id,

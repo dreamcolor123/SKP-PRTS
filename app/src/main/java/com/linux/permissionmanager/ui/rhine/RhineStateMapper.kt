@@ -265,7 +265,7 @@ object RhineStateMapper {
         "console.clear" -> listOf("清空输出", "控制台")
         "log.open", "log.clear.request" -> listOf("日志", "Log", "诊断")
         "diagnostics.open" -> listOf("诊断", "测试", if (payload.optString("kind") == "basic") "基础测试" else "默认模块")
-        "appearance.open" -> listOf("外观", "声音", "音效", "音乐", "静音", "画质", "动画", "主题", "开场", "模型", "拆解")
+        "appearance.open" -> listOf("外观", "声音", "音效", "音乐", "静音", "画质", "动画", "主题", "开场", "简化动效")
         "customizer.open" -> listOf("应用定制", "应用名称", "包名", "图标")
         "settings.toggle" -> when (payload.optString("key")) {
             "bootFailProtect" -> listOf("启动保护", "Boot", "防护")

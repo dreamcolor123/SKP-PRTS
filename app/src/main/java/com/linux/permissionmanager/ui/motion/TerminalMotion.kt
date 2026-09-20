@@ -111,6 +111,23 @@ object TerminalMotionSpec {
 }
 
 @Composable
+fun rememberSystemMotionEnabled(): Boolean {
+    val resolver = LocalContext.current.contentResolver
+    fun read() = ValueAnimator.areAnimatorsEnabled() &&
+        Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    var enabled by remember(resolver) { mutableStateOf(read()) }
+    DisposableEffect(resolver) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) { enabled = read() }
+        }
+        resolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
+        enabled = read()
+        onDispose { resolver.unregisterContentObserver(observer) }
+    }
+    return enabled
+}
+
+@Composable
 fun rememberTerminalMotionEnabled(): Boolean {
     val resolver = LocalContext.current.contentResolver
     val lifecycle = LocalLifecycleOwner.current.lifecycle

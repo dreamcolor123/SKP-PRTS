@@ -56,7 +56,7 @@ import com.linux.permissionmanager.ui.legacy.screens.LocalCustomizerDialog as Le
 import com.linux.permissionmanager.data.UiEffect
 import com.linux.permissionmanager.ui.*
 import com.linux.permissionmanager.ui.rhine.*
-import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
+import com.linux.permissionmanager.ui.motion.rememberSystemMotionEnabled
 import com.linux.permissionmanager.ui.screens.*
 import com.linux.permissionmanager.ui.theme.SkpTheme
 import com.linux.permissionmanager.ui.startup.StartupRootContent
@@ -169,7 +169,7 @@ private fun SkpApp(
     val overlayState: RhineOverlayViewModel = viewModel()
     val latestMode by rememberUpdatedState(uiMode)
     val currentEntry by navController.currentBackStackEntryAsState()
-    val systemMotionEnabled = rememberTerminalMotionEnabled()
+    val systemMotionEnabled = rememberSystemMotionEnabled()
     val startupRoot = mainState.rootConfig.visible && mainState.activeRootKey.isBlank() && !rhineSession.rootEntryCompleted.value
     LaunchedEffect(mainState.rootConfig.visible) {
         if (!mainState.rootConfig.visible) rhineSession.rootEntryCompleted.value = true

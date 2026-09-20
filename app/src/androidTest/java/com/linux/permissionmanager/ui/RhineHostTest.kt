@@ -159,7 +159,54 @@ class RhineHostTest {
         eval("window.rhine.back();true")
         eval("window.rhine.visualLab();true")
         SystemClock.sleep(400)
-        capture("motion-lab")
+        assertFalse(inspect().getJSONObject("host").optBoolean("visualLab"))
+        assertEquals(0, (eval("document.querySelectorAll('[data-action=visual-lab],[data-action=lab-model],[data-action=model-viewer]').length") as Number).toInt())
+        capture("removed-demo-entries")
+    }
+
+    @Test fun dailyReductionKeepsOpeningSeparateAndPauseDoesNotSkip() {
+        show(completed = true)
+        await("workspace ready for preferences") { it.optString("mode") == "detail" }
+        val previous = eval("localStorage.getItem('rhine-settings')")
+        try {
+            eval("document.querySelector('.system-nav [data-action=settings]').click();true")
+            eval("""(()=>{
+                for(const [key,value] of [['reduced',true],['openingEnabled',true],['music',false]]){
+                    const input=document.querySelector('[data-pref="'+key+'"]');
+                    input.checked=value;input.dispatchEvent(new Event('change',{bubbles:true}));
+                }
+                document.querySelector('[data-action=restart]').click();return true;
+            })()""")
+            val opening = await("independent opening") { it.optString("mode") == "boot" }
+            assertTrue(opening.getJSONObject("motion").getBoolean("reduced"))
+            assertFalse(opening.getJSONObject("motion").getBoolean("openingReduced"))
+            assertFalse(opening.getJSONObject("motion").getBoolean("sceneReduced"))
+            assertFalse(opening.getJSONObject("audio").getJSONObject("preferences").getBoolean("music"))
+            compose.runOnIdle { active = false; audioActive = false }
+            await("paused opening") { !it.getJSONObject("host").getJSONObject("presentation").getBoolean("active") }
+            SystemClock.sleep(150)
+            val frame = eval("document.querySelector('#stage').dataset.bootFrame")
+            SystemClock.sleep(350)
+            assertEquals(frame, eval("document.querySelector('#stage').dataset.bootFrame"))
+            assertEquals("boot", inspect().optString("mode"))
+            compose.runOnIdle { active = true; audioActive = true }
+            await("resumed opening") { it.getJSONObject("host").getJSONObject("presentation").getBoolean("active") }
+            eval("document.querySelector('[data-action=skip]').click();true")
+            val daily = await("simplified workspace after skip") { it.optString("mode") == "detail" }
+            assertTrue(daily.getJSONObject("motion").getBoolean("sceneReduced"))
+            eval("document.querySelector('.system-nav [data-action=settings]').click();true")
+            eval("const input=document.querySelector('[data-pref=openingEnabled]');input.checked=false;input.dispatchEvent(new Event('change',{bubbles:true}));true")
+            assertEquals(false, eval("JSON.parse(localStorage.getItem('rhine-settings')).openingEnabled"))
+            assertEquals(true, eval("JSON.parse(localStorage.getItem('rhine-settings')).reduced"))
+            capture("independent-opening-settings")
+            eval("document.querySelector('[data-action=restart]').click();true")
+            await("disabled replay keeps working face") { it.optString("mode") == "detail" && it.getJSONObject("motion").getBoolean("sceneReduced") }
+            assertEquals("home", eval("window.rhine.workspaceState().section"))
+            assertEquals(false, eval("window.rhine.workspaceState().browsing"))
+        } finally {
+            if (previous == JSONObject.NULL || previous == null) eval("localStorage.removeItem('rhine-settings');true")
+            else eval("localStorage.setItem('rhine-settings',${JSONObject.quote(previous.toString())});true")
+        }
     }
 
     @Test fun fiveSectionsAndSearchAreDirectlyAccessible() {
