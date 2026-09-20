@@ -12,8 +12,8 @@
 - 默认应用名：`SKP-PRTS`
 - ABI：`arm64-v8a`
 - 源码仓库：[dreamcolor123/SKP-PRTS](https://github.com/dreamcolor123/SKP-PRTS)
-- 当前功能：新旧 UI 即时切换，保留开场结束后首次导航方向修复
-- Release：[v4.6.2.2 测试版](https://github.com/dreamcolor123/SKP-PRTS/releases/tag/v4.6.2.2)，提供已签名的 arm64 APK 和 SHA-256；沿用测试证书，尚未配置正式发布签名、自动更新渠道或自动发布
+- 当前功能：新旧 UI 即时切换、统一终端入口，开场动画与日常简化动效独立控制
+- Release：[v4.6.2.2-manager-preferences 测试版](https://github.com/dreamcolor123/SKP-PRTS/releases/tag/v4.6.2.2-manager-preferences)，提供已签名的 arm64 APK 和 SHA-256；沿用测试证书，尚未配置正式发布签名、自动更新渠道或自动发布。应用内版本仍为 `4.6.2.2`，此前 Release 保留。
 
 ## 界面与交互
 
@@ -23,6 +23,8 @@
 - 档案正面的透视工作区、物理遮挡、玻璃材质与悬浮导航。
 - 概览、授权、模块、市场、设置五个入口，搜索直达现有原生操作。
 - 默认暗色与 SUPER PERFORMANCE，保留已保存的外观设置。
+- 背景音乐默认关闭，简化动效默认开启；开场动画独立设置且默认开启，不覆盖已有偏好。新版不再提供动态展示和模型拆解入口。详见 [偏好说明](docs/MANAGER_PREFERENCES.md)。
+- 首次界面选择和 Root 配置使用紧凑终端风格；新版亮色模式的全面屏状态栏背景与页面一致。
 - 离线字体、模型、配乐和音效；后台暂停、减少动态及原生回退。
 - 抽卡磨砂转清晰为 1 秒；首次和后续导航采用一致的栏位坐标。
 
