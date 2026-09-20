@@ -120,7 +120,7 @@ class DualUiModeTest {
         compose.onNodeWithText("新版 RhineLabUI").performClick()
         awaitMode(ManagerUiMode.RHINE)
         dismissRootConfig()
-        val started = awaitStats("first Rhine opening") { it.optString("mode") == "boot" }
+        val started = awaitStats("first Rhine opening") { it.optString("mode") == "boot" && it.optString("startup") == "started" }
         assertTrue("Opening should not be treated as completed: $started", started.optDouble("bootTime") < 35.0)
         eval("window.rhine.seek(8); true")
         awaitStats("seek into opening") { it.optDouble("bootTime") >= 12.0 }
@@ -396,6 +396,15 @@ class DualUiModeTest {
     }
 
     private fun dismissRootConfig() {
+        // The unconfigured fixture's initial native refresh can request the key again.
+        // Settle that request before canceling, so this test observes the opening itself.
+        await("initial environment check") {
+            var loaded = false
+            withActivity { activity ->
+                loaded = !ViewModelProvider(activity, AppViewModelFactory(app))[HomeViewModel::class.java].state.value.loading
+            }
+            loaded
+        }
         withActivity { activity -> models(activity).main.dismissRootConfig() }
         compose.waitForIdle()
     }
