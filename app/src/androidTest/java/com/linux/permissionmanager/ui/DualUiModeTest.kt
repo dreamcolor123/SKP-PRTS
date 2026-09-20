@@ -133,6 +133,56 @@ class DualUiModeTest {
         capture("rhine-opening-restored")
     }
 
+    @Test fun realStartupValidationAndCancellationPreserveLegacyRootDialog() {
+        launch(null)
+        compose.onNodeWithTag("ui-mode-choice").assertIsDisplayed()
+        compose.onNodeWithTag("startup-screen").assertIsDisplayed()
+        compose.onNodeWithTag("startup-title").assertIsDisplayed()
+        capture("real-startup-choice")
+        compose.onNodeWithText("旧版 SKRoot Pro Compose").performClick()
+        awaitMode(ManagerUiMode.LEGACY)
+        compose.onNodeWithTag("ui-mode-choice").assertDoesNotExist()
+        compose.onNodeWithTag("startup-screen").assertIsDisplayed()
+        compose.onNodeWithTag("startup-title").assertIsDisplayed()
+        assertNull(webView())
+
+        scenario!!.recreate()
+        compose.onNodeWithTag("startup-screen").assertIsDisplayed()
+        compose.onNodeWithTag("startup-title").assertIsDisplayed()
+        withActivity { activity ->
+            val main = models(activity).main.state.value
+            assertTrue(main.rootConfig.visible)
+            assertTrue(main.rootConfig.rootKey.isBlank())
+            assertTrue(main.activeRootKey.isBlank())
+        }
+        compose.onNodeWithTag("startup-confirm").performClick()
+        await("empty startup key validation") {
+            runCatching { compose.onNodeWithText("请输入 Root Key").assertIsDisplayed(); true }.getOrDefault(false)
+        }
+        compose.onNodeWithTag("startup-screen").assertIsDisplayed()
+        capture("real-startup-root-error")
+        compose.onNodeWithTag("startup-cancel").performClick()
+        awaitLegacy()
+        compose.onNodeWithTag("startup-screen").assertDoesNotExist()
+        assertNull(webView())
+        withActivity { activity ->
+            assertTrue(ViewModelProvider(activity)[RhineSessionViewModel::class.java].rootEntryCompleted.value)
+            models(activity).main.showRootConfig()
+        }
+        compose.onNodeWithTag("startup-screen").assertDoesNotExist()
+        compose.onNodeWithText("确定").assertIsDisplayed()
+        compose.onNodeWithText("Root 密钥配置").assertIsDisplayed()
+        capture("legacy-normal-root-dialog")
+        compose.onNodeWithText("取消").performClick()
+        awaitLegacy()
+        withActivity { activity ->
+            assertFalse(models(activity).main.state.value.rootConfig.visible)
+            assertTrue(models(activity).main.state.value.activeRootKey.isBlank())
+        }
+        assertTrue(app.container.settings.rootKey.isBlank())
+        assertPersisted(ManagerUiMode.LEGACY)
+    }
+
     @Test fun settingsSwitchBothWaysKeepsViewModelsQueriesAndWorkspace() {
         launch(ManagerUiMode.LEGACY)
         dismissRootConfig()

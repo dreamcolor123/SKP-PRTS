@@ -59,6 +59,7 @@ import com.linux.permissionmanager.ui.rhine.*
 import com.linux.permissionmanager.ui.motion.rememberTerminalMotionEnabled
 import com.linux.permissionmanager.ui.screens.*
 import com.linux.permissionmanager.ui.theme.SkpTheme
+import com.linux.permissionmanager.ui.startup.StartupRootContent
 import com.linux.permissionmanager.utils.FileUtils
 import com.linux.permissionmanager.utils.GetAppListPermissionHelper
 import com.linux.permissionmanager.utils.ModuleWebUiShortcut
@@ -115,7 +116,11 @@ private fun SkpRoot() {
     val mode by application.container.managerUi.mode.collectAsStateWithLifecycle()
     val chosen = mode
     if (chosen == null) {
-        ManagerUiChoice(application.container.managerUi::select)
+        SkpTheme(appearance) {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                ManagerUiChoice(application.container.managerUi::select)
+            }
+        }
     } else {
         SkpApp(application, appearance, { backgroundPicker.launch(arrayOf("image/*")) }, chosen)
     }
@@ -165,6 +170,10 @@ private fun SkpApp(
     val latestMode by rememberUpdatedState(uiMode)
     val currentEntry by navController.currentBackStackEntryAsState()
     val systemMotionEnabled = rememberTerminalMotionEnabled()
+    val startupRoot = mainState.rootConfig.visible && mainState.activeRootKey.isBlank() && !rhineSession.rootEntryCompleted.value
+    LaunchedEffect(mainState.rootConfig.visible) {
+        if (!mainState.rootConfig.visible) rhineSession.rootEntryCompleted.value = true
+    }
     val installResultAction = remember(context.packageName) { "${context.packageName}.LOCAL_INSTALL_RESULT" }
 
     val switchBlocked = mainState.rootConfig.visible || mainState.rootConfig.busy || localCustomizerState.visible ||
@@ -417,7 +426,20 @@ private fun SkpApp(
     val content: @Composable () -> Unit = {
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
-            if (uiMode == ManagerUiMode.RHINE) {
+    if (startupRoot) {
+        Box(Modifier.fillMaxSize()) {
+            StartupRootContent(
+                state = mainState.rootConfig,
+                onDismiss = mainViewModel::dismissRootConfig,
+                onRootKeyChange = mainViewModel::updateRootKey,
+                onModeChange = mainViewModel::updateMode,
+                onImport = { withStorageAccess(RhineStorageAction.IMPORT_HOTLOAD) },
+                onExport = { withStorageAccess(RhineStorageAction.EXPORT_HOTLOAD) },
+                onConfirm = mainViewModel::saveRootConfig,
+            )
+            SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter).safeDrawingPadding().imePadding().padding(bottom = 96.dp))
+        }
+    } else if (uiMode == ManagerUiMode.RHINE) {
                 Box(Modifier.fillMaxSize()) {
                     RhineManagement(
                         application = application,
@@ -582,7 +604,7 @@ private fun SkpApp(
         )
     }
 
-    if (mainState.rootConfig.visible) {
+    if (mainState.rootConfig.visible && !startupRoot) {
         if (uiMode == ManagerUiMode.LEGACY) LegacyRootConfigDialog(
             state = mainState.rootConfig,
             onDismiss = mainViewModel::dismissRootConfig,
@@ -599,9 +621,8 @@ private fun SkpApp(
             onImport = { withStorageAccess(RhineStorageAction.IMPORT_HOTLOAD) },
             onExport = { withStorageAccess(RhineStorageAction.EXPORT_HOTLOAD) },
             onConfirm = mainViewModel::saveRootConfig,
-            startup = !rhineSession.bootCompleted.value && mainState.activeRootKey.isBlank() && uiMode == ManagerUiMode.RHINE,
         )
-    } else if (mainState.rootConfig.busy) {
+    } else if (mainState.rootConfig.busy && !startupRoot) {
         if (uiMode == ManagerUiMode.LEGACY) com.linux.permissionmanager.ui.legacy.screens.BusyDialog("正在加载热启动补丁，预计需要 1 分钟…")
         else BusyDialog("正在加载热启动补丁，预计需要 1 分钟…")
     }
@@ -616,7 +637,7 @@ private fun SkpApp(
         )
     }
     }
-    if (uiMode == ManagerUiMode.LEGACY) {
+    if (uiMode == ManagerUiMode.LEGACY && !startupRoot) {
         LegacyTheme(appearance) {
             LegacyBackground(appearance,
                 backgroundModifier = if (appearance.glassNavigationEnabled) Modifier.hazeSource(glassHazeState, zIndex = 0f) else Modifier,

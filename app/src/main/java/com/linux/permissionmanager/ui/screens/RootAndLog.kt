@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.linux.permissionmanager.ui.RootConfigUiState
+import com.linux.permissionmanager.ui.startup.StartupRootContent
 import com.linux.permissionmanager.R
 import com.linux.permissionmanager.ui.components.TerminalTopBar
 import com.linux.permissionmanager.ui.theme.AppearanceTokens
@@ -56,6 +57,14 @@ fun RootConfigDialog(
     onConfirm: () -> Unit,
     startup: Boolean = false,
 ) {
+    if (startup) {
+        Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(
+            usePlatformDefaultWidth = false, dismissOnClickOutside = false, dismissOnBackPress = !state.busy,
+        )) {
+            StartupRootContent(state, onDismiss, onRootKeyChange, onModeChange, onImport, onExport, onConfirm)
+        }
+        return
+    }
     Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = !state.busy, dismissOnClickOutside = !startup && !state.busy)) {
         Surface(
             modifier = if (startup) Modifier.fillMaxSize() else Modifier.widthIn(max = 560.dp).fillMaxWidth(.94f),

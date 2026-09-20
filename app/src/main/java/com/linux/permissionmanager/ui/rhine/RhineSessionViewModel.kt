@@ -24,6 +24,7 @@ internal class RhineSessionViewModel(private val savedState: SavedStateHandle) :
     }
     val bootTime = presentationState("bootTime", 1.76)
     val bootCompleted = presentationState("bootCompleted", false)
+    val rootEntryCompleted = presentationState("rootEntryCompleted", false)
     val workspace = presentationState<String?>("workspace", null)
     val sensorEnabled = mutableStateOf(false)
     val rendererGeneration = mutableStateOf(0)
